@@ -38,8 +38,9 @@ soft and silent carpet. Cost:125"
 use_noisemaker: "The mechanism in this arrow produces a strange noise upon \
 impact, useful as a distraction. Cost:250"
 
-use_rope: "This arrow will stick into wooden surfaces and deploy a hanging rope. \
-Cost:200"
+use_rope: "Sorry Garrett, it's my last one. You know I don't do discounts. \
+Can't afford to make exceptions. \
+Cost:1500"
 
 use_sword: "In addition to putting holes in the enemy, a sword can block a foe's \
 attack."
