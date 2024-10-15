@@ -18,3 +18,19 @@ class FallLadder extends SqRootScript {
         SetProperty("PhysState", "Rot Velocity", rotvel);
     }
 }
+
+class FlickerMomentary extends SqRootScript {
+    function OnTweqComplete() {
+        if (message().Type==eTweqType.kTweqTypeFlicker
+        && message().Op==eTweqOperation.kTweqOpFrameEvent) {
+            SetProperty("RenderAlpha", 0.0);
+            SetOneShotTimer("Unflicker", 0.2);
+        }
+    }
+
+    function OnTimer() {
+        if (message().name=="Unflicker") {
+            SetProperty("RenderAlpha", 1.0);
+        }
+    }
+}
