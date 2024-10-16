@@ -34,3 +34,36 @@ class FlickerMomentary extends SqRootScript {
         }
     }
 }
+
+class FrobLockSounds extends SqRootScript {
+    function OnFrobWorldEnd() {
+        Sound.PlayEnvSchema(self, "Event Reject, Operation FrobLock",
+            self, message().Frobber, eEnvSoundLoc.kEnvSoundAtObjLoc);
+    }
+}
+
+class RevealDattachWhenUnlocked extends SqRootScript {
+    function OnNowUnlocked() {
+        // Reveal the dattached fake key.
+        local links = Link.GetAll("~DetailAttachement", self);
+        foreach (link in links) {
+            local target = LinkDest(link);
+            if (Property.Possessed(target, "RenderAlpha")) {
+                Property.SetSimple(target, "RenderAlpha", 1.0);
+            }
+        }
+    }
+}
+
+class SlayOwnedWhenUnlocked extends SqRootScript {
+    function OnNowUnlocked() {
+        // T1 doesn't Slay keys on use, so we have to. We keep track of our
+        // key with an Owns link. Of course this only works because there is
+        // just a single door for this key.
+        local links = Link.GetAll("Owns", self);
+        foreach (link in links) {
+            local target = LinkDest(link);
+            Damage.Slay(target, self);
+        }
+    }
+}

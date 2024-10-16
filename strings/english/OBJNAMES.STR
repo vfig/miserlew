@@ -128,3 +128,7 @@ Name_house:   "House Key"
 Name_safekey:  "Safe Key"
 Name_frkey:   "Front Door Key"
 Name_trkey:  "Treasure Key"
+
+; MISERLEW
+
+Name_Scepter: "Scepter"
