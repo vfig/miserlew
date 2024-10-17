@@ -82,6 +82,10 @@ Possess <- {
         return Object.Named("PossessAnchor");
     }
 
+    function GetAnchorPointer() {
+        return Object.Named("PossessAnchorPointer");
+    }
+
     function GetWasAt() {
         return Object.Named("PossessWasAt");
     }
@@ -146,6 +150,13 @@ Possess <- {
             Property.SetSimple(anchor, "PhysCanMant", false);
             Property.SetSimple(anchor, "PhysAIColl", false);
             Object.EndCreate(anchor);
+        }
+        local anchorPointer = Possess.GetAnchorPointer();
+        if (anchorPointer==0) {
+            anchorPointer = Object.BeginCreate("fnord");
+            Object.SetName(anchorPointer, "PossessAnchorPointer");
+            Object.Teleport(anchorPointer, vector(), vector());
+            Object.EndCreate(anchorPointer);
         }
         local wasAt = Possess.GetWasAt();
         if (wasAt==0) {
@@ -405,6 +416,11 @@ class Possessor extends SqRootScript {
         }
     }
 
+    function IsDoor(obj) {
+        return (Property.Possessed(obj,"RotDoor")
+            || Property.Possessed(obj,"TransDoor"));
+    }
+
     function BeginPossession(target, offset) {
         if (IsPossessing()) {
             print("ERROR! Tried to possess when already possessing. Fix this bug!");
@@ -414,7 +430,19 @@ class Possessor extends SqRootScript {
             print("ERROR! Tried to possess when PhysAttached. Fix this bug!");
             return false;
         }
+        // We have two modes of operation. Normally we teleport the anchor into
+        // the desired position, and then PhysAttach the player to that. But
+        // because the PhysAttach offset is in world coordinates, when attached
+        // to a door (or rotating object), we would not rotate with the target.
+        //
+        // So in these cases we PhysAttach directly to the target, and
+        // DetailAttach the pointer to the target also. Then each frame we
+        // measure the worldspace coordinates of the pointer and the target,
+        // and use that to update the PhysAttach offset.
+        local directAttachMode = IsDoor(target);
+
         local anchor = Possess.GetAnchor();
+        local pointer = Possess.GetAnchorPointer();
         local wasAt = Possess.GetWasAt();
         local inv = Possess.GetInventory();
         local frobL = Possess.GetFrobLeft();
@@ -422,7 +450,7 @@ class Possessor extends SqRootScript {
         Object.Teleport(wasAt, vector(), vector(), self);
         Container.MoveAllContents(self, inv, CTF_NONE);
         Container.Add(frobL, self, 0, CTF_NONE);
-        Container.Add(frobR, self, 0, CTF_NONE);
+//        Container.Add(frobR, self, 0, CTF_NONE);
         // NOTE: we set IsPossessing *after* inventory transfer, so that we can
         //       safely check it in Container messages.
         SetData("IsPossessing", true);
@@ -446,6 +474,10 @@ class Possessor extends SqRootScript {
         SetData("PlayerHeadOffset", vector(0.0,0.0,playerHeadZ));
         SetData("PlayerBodyOffset", vector(0.0,0.0,playerBodyZ));
         SetData("PlayerFootOffset", vector(0.0,0.0,playerFootZ));
+        // Clear the player's collision response so they won't impact doors, AIs, etc.
+        local collisionType = GetProperty("CollisionType");
+        SetData("PlayerCollisionType", collisionType);
+        SetProperty("CollisionType", 0);
 
         // TODO: delete this crap
         //                                    // stand / crouch
@@ -459,28 +491,45 @@ class Possessor extends SqRootScript {
         offset.z -= playerHeadZ+0.8;
         local toPos = Object.ObjectToWorld(target, offset);
         local toFacing = Object.Facing(target);
-        Object.Teleport(anchor, toPos, toFacing);
-        // TODO: if we want a fade to black, we apparently need to start it
-        //       before the teleport??? or maybe that is just a not-doing-it-
-        //       via-script thing.
-        Object.Teleport(self, vector(), vector(), anchor);
-        Link.Create("PhysAttach", self, anchor);
-        // NOTE: If the anchor the player is PhysAttached to is stationary,
-        //       then the player can only turn the camera horizontally, not
-        //       vertically. It makes no sense, but that is what happens.
-        //       To work around this, we need to control the anchor's velocity
-        //       with a nonzero value; but controlling velocity disables
-        //       location controls. So we make sure the anchor has no gravity,
-        //       so it won't fall; we control its velocity with a small value
-        //       that is nonzero so the camera works, but because the value is
-        //       less than 1, it doesnt end up actually moving? Also weird,
-        //       but it works for us.
-        Physics.SetGravity(anchor, 0.0);
-        // NOTE: Physics.ControlVelocity() is Thief 2 only. We do this instead:
-        local controls = Property.Get(anchor, "PhysControl", "Controls Active")
-        local velocity = vector(0,0,0.1);
-        Property.Set(anchor, "PhysControl", "Velocity", velocity);
-        Property.Set(anchor, "PhysControl", "Controls Active", (controls&~8)|2); // -Location, +Velocity
+        if (directAttachMode) {
+            Object.Teleport(pointer, toPos, toFacing);
+            local d = Link.Create("DetailAttachement", pointer, target);
+            LinkTools.LinkSetData(d, "Type", 0); // Object
+            LinkTools.LinkSetData(d, "rel pos", offset);
+            LinkTools.LinkSetData(d, "Flags", 1); // No Auto-Delete
+
+            // TODO: if we want a fade to black, we apparently need to start it
+            //       before the teleport??? or maybe that is just a not-doing-it-
+            //       via-script thing.
+            Object.Teleport(self, vector(), vector(), pointer);
+            Link.Create("PhysAttach", self, target);
+
+            PostMessage(self, "PossessReanchor");
+        } else {
+            Object.Teleport(anchor, toPos, toFacing);
+
+            // TODO: if we want a fade to black, we apparently need to start it
+            //       before the teleport??? or maybe that is just a not-doing-it-
+            //       via-script thing.
+            Object.Teleport(self, vector(), vector(), anchor);
+            Link.Create("PhysAttach", self, anchor);
+
+            // NOTE: If the anchor the player is PhysAttached to is stationary,
+            //       then the player can only turn the camera horizontally, not
+            //       vertically. It makes no sense, but that is what happens.
+            //       To work around this, we need to control the anchor's velocity
+            //       with a nonzero value; but controlling velocity disables
+            //       location controls. So we make sure the anchor has no gravity,
+            //       so it won't fall; we control its velocity with a small value
+            //       that is nonzero so the camera works, but because the value is
+            //       less than 1, it doesnt end up actually moving? Also weird,
+            //       but it works for us.
+            Physics.SetGravity(anchor, 0.0);
+            // NOTE: Physics.ControlVelocity() is Thief 2 only. We do this instead:
+            local velocity = vector(0,0,0.1);
+            Property.Set(anchor, "PhysControl", "Velocity", velocity);
+            Property.Set(anchor, "PhysControl", "Controls Active", 2); // Velocity
+        }
         // And keep track of what we are possessing.
         local link = Link.Create("ScriptParams", self, target);
         LinkTools.LinkSetData(link, "", "Possessed");
@@ -495,10 +544,10 @@ class Possessor extends SqRootScript {
         // NOTE: If we only need right-frob, then we can change PossessFrobRight
         //       to be a junk item, because *nothing* can be frobbed while
         //       holding a junk item.
-        Object.AddMetaPropertyToMany("M-NoFrobWhilePossessed", "@physical");
+//        Object.AddMetaPropertyToMany("M-NoFrobWhilePossessed", "@physical");
 
         // TEMP: we don't have a way to manually detach yet, so automate it.
-        //SetOneShotTimer("TempDetach", 5.0);
+        SetOneShotTimer("TempDetach", 15.0);
     }
 
     function EndPossession(position, facing) {
@@ -510,23 +559,36 @@ class Possessor extends SqRootScript {
         // NOTE: we must clear IsPossessing *before* inventory restoration, so
         //       that we won't react to the Container messages.
         SetData("IsPossessing", false);
+        local target = GetPossessedObject();
         local anchor = Possess.GetAnchor();
+        local pointer = Possess.GetAnchorPointer();
         local wasAt = Possess.GetWasAt();
         local inv = Possess.GetInventory();
         local frobL = Possess.GetFrobLeft();
         local frobR = Possess.GetFrobRight();
-        // Disconnect from the anchor.
+        // Disconnect from the anchor (or target).
         local link = Link.GetOne("PhysAttach", self, anchor);
         if (link==0) {
-            print("ERROR! Unpossessed when not PhysAttached. Fix this bug!");
+            link = Link.GetOne("PhysAttach", self, target);
+            if (link==0) {
+                print("ERROR! Unpossessed when not PhysAttached. Fix this bug!");
+            }
         }
         Link.Destroy(link);
+        // Disconnect the anchor pointer (if attached).
+        link = Link.GetOne("DetailAttachement", pointer, target);
+        if (link!=0) {
+            Link.Destroy(link);
+        }
         // Disconnect from the possessed target.
         link = GetPossessedLink();
         if (link==0) {
             print("ERROR! Unpossessed with no ScriptParams('Possessed') link. Fix this bug!");
         }
         Link.Destroy(link);
+        // Restore the player's collision response.
+        local collisionType = GetData("PlayerCollisionType");
+        SetProperty("CollisionType", collisionType);
         // Restore player position.
         Object.Teleport(self, position, facing);
         // Restore inventory, setting the global flag to prevent loot sounds.
@@ -539,14 +601,31 @@ class Possessor extends SqRootScript {
         EnableLootSounds(true);
         // Park the anchor back at the origin ready for next time.
         // NOTE: Physics.StopControlVelocity() is Thief 2 only. We do this instead:
-        local controls = Property.Get(anchor, "PhysControl", "Controls Active")
         Property.Set(anchor, "PhysControl", "Velocity", vector(0,0,0));
-        Property.Set(anchor, "PhysControl", "Controls Active", (controls&~2)|8); // -Velocity, +Location
-        Physics.SetVelocity(anchor, vector(0,0,0));
+        Property.Set(anchor, "PhysControl", "Controls Active", 8); // Location
         Object.Teleport(anchor, vector(), vector());
         Physics.ControlCurrentPosition(anchor);
         // Restore frobs.
         Object.RemoveMetaPropertyFromMany("M-NoFrobWhilePossessed", "@physical");
+    }
+
+    function OnPossessReanchor() {
+        if (IsPossessing()) {
+            local anchor = Possess.GetAnchor();
+            local pointer = Possess.GetAnchorPointer();
+            local target = GetPossessedObject();
+            local link = Link.GetOne("PhysAttach", self, target);
+            if (link==0) {
+                // Should exist! but never mind.
+                print("Error: player has no PhysAttach"); // TEMP
+                return;
+            }
+            local targetPos = Object.Position(target);
+            local pointerPos = Object.Position(pointer);
+            local offset = pointerPos-targetPos;
+            LinkTools.LinkSetData(link, "Offset", offset);
+            PostMessage(self, "PossessReanchor");
+        }
     }
 
     function IsTargetValid() {
