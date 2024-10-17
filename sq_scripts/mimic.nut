@@ -52,6 +52,7 @@ class PossessMe extends SqRootScript {
     function OnFrobWorldEnd() {
         local frobber = message().Frobber;
         if (Object.InheritsFrom(frobber, "Avatar")) {
+            BlockMessage();
             SendMessage(frobber, "PossessMe", GetPossessOffset());
         }
     }
@@ -492,6 +493,10 @@ class Possessor extends SqRootScript {
         local toPos = Object.ObjectToWorld(target, offset);
         local toFacing = Object.Facing(target);
         if (directAttachMode) {
+            if (! Object.HasMetaProperty(target, "M-PossessMouselookFix")) {
+                Object.AddMetaProperty(target, "M-PossessMouselookFix");
+            }
+
             Object.Teleport(pointer, toPos, toFacing);
             local d = Link.Create("DetailAttachement", pointer, target);
             LinkTools.LinkSetData(d, "Type", 0); // Object
@@ -504,8 +509,12 @@ class Possessor extends SqRootScript {
             Object.Teleport(self, vector(), vector(), pointer);
             Link.Create("PhysAttach", self, target);
 
+            PostMessage(target, "PossessEnableFix", 1);
             PostMessage(self, "PossessReanchor");
         } else {
+            if (! Object.HasMetaProperty(anchor, "M-PossessMouselookFix")) {
+                Object.AddMetaProperty(anchor, "M-PossessMouselookFix");
+            }
             Object.Teleport(anchor, toPos, toFacing);
 
             // TODO: if we want a fade to black, we apparently need to start it
@@ -513,22 +522,7 @@ class Possessor extends SqRootScript {
             //       via-script thing.
             Object.Teleport(self, vector(), vector(), anchor);
             Link.Create("PhysAttach", self, anchor);
-
-            // NOTE: If the anchor the player is PhysAttached to is stationary,
-            //       then the player can only turn the camera horizontally, not
-            //       vertically. It makes no sense, but that is what happens.
-            //       To work around this, we need to control the anchor's velocity
-            //       with a nonzero value; but controlling velocity disables
-            //       location controls. So we make sure the anchor has no gravity,
-            //       so it won't fall; we control its velocity with a small value
-            //       that is nonzero so the camera works, but because the value is
-            //       less than 1, it doesnt end up actually moving? Also weird,
-            //       but it works for us.
-            Physics.SetGravity(anchor, 0.0);
-            // NOTE: Physics.ControlVelocity() is Thief 2 only. We do this instead:
-            local velocity = vector(0,0,0.1);
-            Property.Set(anchor, "PhysControl", "Velocity", velocity);
-            Property.Set(anchor, "PhysControl", "Controls Active", 2); // Velocity
+            PostMessage(anchor, "PossessEnableFix", 1);
         }
         // And keep track of what we are possessing.
         local link = Link.Create("ScriptParams", self, target);
@@ -566,6 +560,9 @@ class Possessor extends SqRootScript {
         local inv = Possess.GetInventory();
         local frobL = Possess.GetFrobLeft();
         local frobR = Possess.GetFrobRight();
+        // Stop the mouselook fix (no matter who is running it).
+        SendMessage(anchor, "PossessEnableFix", 0);
+        SendMessage(target, "PossessEnableFix", 0);
         // Disconnect from the anchor (or target).
         local link = Link.GetOne("PhysAttach", self, anchor);
         if (link==0) {
@@ -600,11 +597,7 @@ class Possessor extends SqRootScript {
         Container.MoveAllContents(inv, self, CTF_NONE);
         EnableLootSounds(true);
         // Park the anchor back at the origin ready for next time.
-        // NOTE: Physics.StopControlVelocity() is Thief 2 only. We do this instead:
-        Property.Set(anchor, "PhysControl", "Velocity", vector(0,0,0));
-        Property.Set(anchor, "PhysControl", "Controls Active", 8); // Location
         Object.Teleport(anchor, vector(), vector());
-        Physics.ControlCurrentPosition(anchor);
         // Restore frobs.
         Object.RemoveMetaPropertyFromMany("M-NoFrobWhilePossessed", "@physical");
     }
@@ -773,6 +766,105 @@ class Possessor extends SqRootScript {
             return;
         }
     }
+}
+
+class PossessMouselookFix extends SqRootScript {
+    function IsDoor(obj) {
+        return (Property.Possessed(obj,"RotDoor")
+            || Property.Possessed(obj,"TransDoor"));
+    }
+
+    function OnBeginScript() {
+        SetData("Active", 0);
+        SetData("Override", 0);
+    }
+
+    function OnPossessEnableFix() {
+        local enable = (message().data==1);
+        SetData("Active", (enable? 1 : 0));
+        ApplyFix();
+        if (enable) {
+            ApplyDoorHack();
+        }
+    }
+
+    function EnableOverride(override) {
+        SetData("Override", (override? 1 : 0));
+        ApplyFix();
+    }
+
+    function OnDoorOpening() { EnableOverride(true); }
+    function OnDoorClosing() { EnableOverride(true); }
+    function OnDoorOpen()    { EnableOverride(false); }
+    function OnDoorClose()   { EnableOverride(false); }
+    function OnDoorHalt()    { EnableOverride(false); }
+
+    function ApplyFix() {
+        // HACK: If the anchor the player is PhysAttached to is stationary,
+        //       then the player can only turn the camera horizontally, not
+        //       vertically. It makes no sense, but that is what happens.
+        //       To work around this, we need to control the anchor's velocity
+        //       with a nonzero value; but controlling velocity disables
+        //       location controls. So we make sure the anchor has no gravity,
+        //       so it won't fall; we control its velocity with a small value
+        //       that is nonzero so the camera works, but because the value is
+        //       less than 1, it doesnt end up actually moving? Also weird,
+        //       but it works for us.
+        local isActive = (GetData("Active")==1);
+        // When the override is on, we always disable the fix.
+        local isOverride = (GetData("Override")==1);
+        if (isOverride) {
+            isActive = false;
+        }
+        if (isActive) {
+            SetData("Active", 1);
+            Physics.SetGravity(self, 0.0);
+            // NOTE: Physics.ControlVelocity() is Thief 2 only. We do this instead:
+            local velocity = vector(0,0,0.1);
+            local controls = Property.Get(self, "PhysControl", "Controls Active");
+            Property.Set(self, "PhysControl", "Velocity", velocity);
+            Property.Set(self, "PhysControl", "Controls Active", (controls&~8)|2); // +Velocity, -Location
+        } else {
+            SetData("Active", 0);
+            Physics.SetGravity(self, 1.0); // TODO: should restore, not set, right?
+            // NOTE: Physics.StopControlVelocity() is Thief 2 only. We do this instead:
+            local controls = Property.Get(self, "PhysControl", "Controls Active");
+            Property.Set(self, "PhysControl", "Velocity", vector(0,0,0));
+            Property.Set(self, "PhysControl", "Controls Active", (controls&~2)|8); // -Velocity, +Location
+            Physics.ControlCurrentPosition(self);
+        }
+    }
+
+    function ApplyDoorHack() {
+        if (IsDoor(self)) {
+            // HACK: While the bare fix works okay on say, a statue, when
+            //       applied to a door, the controlled velocity *does* cause
+            //       the door to start drifting. No idea why the a difference!
+            //       But once the door has begun moving and stopped moving,
+            //       the velocity does not remain. Why? Good question.
+            //       So to work around that, we re-open or re-close the door
+            //       here just to kick things off. Note that we assume that
+            //       the door was halted while *opening*, since that is more
+            //       usual in Thief. If that assumption turns out to be a
+            //       problem, then we can fix it later.
+            // Silence the door while we do the hack.
+            local tags = GetProperty("Class Tags", "1: Tags");
+            SetProperty("Class Tags", "1: Tags", "");
+            local state = Door.GetDoorState(self);
+            if (state==eDoorStatus.kDoorClosed
+            || state== eDoorStatus.kDoorClosing) {
+                Door.OpenDoor(self);
+                Door.CloseDoor(self);
+            } else if (state== eDoorStatus.kDoorOpen
+            || state==eDoorStatus.kDoorOpening
+            || state==eDoorStatus.kDoorHalt) {
+                Door.CloseDoor(self);
+                Door.OpenDoor(self);
+            }
+            SetProperty("Class Tags", "1: Tags", tags);
+        }
+    }
+
 }
 
 // TODO: there is a whole bunch of fiddly state management needed if we are going
