@@ -476,7 +476,11 @@ class Possessor extends SqRootScript {
         //       less than 1, it doesnt end up actually moving? Also weird,
         //       but it works for us.
         Physics.SetGravity(anchor, 0.0);
-        Physics.ControlVelocity(anchor, vector(0,0,0.1));
+        // NOTE: Physics.ControlVelocity() is Thief 2 only. We do this instead:
+        local controls = Property.Get(anchor, "PhysControl", "Controls Active")
+        local velocity = vector(0,0,0.1);
+        Property.Set(anchor, "PhysControl", "Velocity", velocity);
+        Property.Set(anchor, "PhysControl", "Controls Active", (controls&~8)|2); // -Location, +Velocity
         // And keep track of what we are possessing.
         local link = Link.Create("ScriptParams", self, target);
         LinkTools.LinkSetData(link, "", "Possessed");
@@ -534,7 +538,11 @@ class Possessor extends SqRootScript {
         Container.MoveAllContents(inv, self, CTF_NONE);
         EnableLootSounds(true);
         // Park the anchor back at the origin ready for next time.
-        Physics.StopControlVelocity(anchor);
+        // NOTE: Physics.StopControlVelocity() is Thief 2 only. We do this instead:
+        local controls = Property.Get(anchor, "PhysControl", "Controls Active")
+        Property.Set(anchor, "PhysControl", "Velocity", vector(0,0,0));
+        Property.Set(anchor, "PhysControl", "Controls Active", (controls&~2)|8); // -Velocity, +Location
+        Physics.SetVelocity(anchor, vector(0,0,0));
         Object.Teleport(anchor, vector(), vector());
         Physics.ControlCurrentPosition(anchor);
         // Restore frobs.
