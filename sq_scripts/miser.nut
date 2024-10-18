@@ -70,38 +70,52 @@ class SlayOwnedWhenUnlocked extends SqRootScript {
 
 class NotActuallyLoot extends SqRootScript {
     function OnBeginScript() {
-        print(""+self+" is not actually loot.");
+        SwitchTextures("Stone");
     }
-    // TODO: on begin script, change the texture
-    //       on end script, change it back
-    //       when a global trigger happens, remove M-NotActuallyLoot
+
+    function OnEndScript() {
+        SwitchTextures("Gold");
+        Object.RemoveMetaProperty(self, "M-NotActuallyLoot");
+    }
+
+    function OnContained() {
+        local isPickup = (message().event==eContainsEvent.kContainAdd
+            || message().event==eContainsEvent.kContainCombine);
+        local isPlayer = Object.InheritsFrom(message().container, "Avatar");
+        if (isPickup && isPlayer) {
+            // Engine is hardcoded to change the name of an object with
+            // "Loot" property to its loot stats when picked up. So we
+            // change it back here, because it is junk right now!
+            SetProperty("GameName", "");
+        }
+    }
+
+    function SwitchTextures(keyPrefix) {
+        local params = userparams();
+        for (local i=0; i<4; i++) {
+            local key = keyPrefix+i;
+            local prop = "OTxtRepr"+i;
+            if (key in params
+            && HasProperty(prop)) {
+                SetProperty(prop, params[key]);
+            }
+        }
+    }
 }
-
-/*
-    BUGS:
-        - first item picked up after "not treasure", if loot pile is selected,
-          still gets combined into loot pile!!
-            (i think this happens because M-NotActuallyLoot gets added back on
-                to the loot stack in the inventory)
-            (its okay, we only need two switches: into not-loot, at game start,
-                and into loot after -- you will not have a loot stack in either case!)
-            (alternatively, enumerate MetaProp links from SwitchTreasure to find
-              concretes that are not contained by the player, and only add the
-              metaprop onto them?)
-        - replace textures are not copied over when a combine happens (see TBP solution)
-
-    TODO:
-        - add other texture info to design notes
-        - swap textures!!
-
-*/
 
 
 class TreasureSwitcher extends SqRootScript {
+    // BUG: If you change from gold back to stone after the player picks some up
+    //      (i.e. they have a loot stack in their inventory), then sometimes the
+    //      junk will get combined into that loot pile. WONTFIX: For this mission,
+    //      we ensure the player has no loot at all until after the stone->gold
+    //      switch has happened; and we don't allow any gold->stone switch after
+    //      the mission starts.
+
     function OnSim() {
-        // if (message().starting) {
-        //     MakeLoot(false);
-        // }
+        if (message().starting) {
+            MakeLoot(false);
+        }
     }
 
     function OnTurnOn() {
@@ -109,14 +123,37 @@ class TreasureSwitcher extends SqRootScript {
     }
 
     function OnTurnOff() {
-        MakeLoot(false);
+        // Disabled: we don't need it (and see bug note above).
+        //MakeLoot(false);
     }
 
-    function MakeLoot(isLoot) {
-        if (isLoot) {
+    function MakeLoot(becomeLoot) {
+
+        if (becomeLoot) {
             Object.RemoveMetaPropertyFromMany("M-NotActuallyLoot", "@M-NotActuallyLoot");
         } else {
             Object.AddMetaPropertyToMany("M-NotActuallyLoot", "@SwitchTreasure,-@M-NotActuallyLoot");
         }
+    }
+}
+
+/* ResLoot by FireMage, from The Black Parade. */
+//Make Loot items get the ReplaceTextures properties for the newly stolen items
+//so Loot using Replace Textures will keep their custom texture
+//instead of displaying the ugly replace texture
+class ResLoot extends SqRootScript
+{
+    function OnCombine()
+    {
+        //print("COMBINE : " +(message().combiner).tostring() + " " + self.tostring());
+        local o = message().combiner;
+        if(Property.Possessed(o,"OTxtRepr0"))
+            SetProperty("OTxtRepr0",Property.Get(o,"OTxtRepr0"));
+        if(Property.Possessed(o,"OTxtRepr1"))
+            SetProperty("OTxtRepr1",Property.Get(o,"OTxtRepr1"));
+        if(Property.Possessed(o,"OTxtRepr2"))
+            SetProperty("OTxtRepr2",Property.Get(o,"OTxtRepr2"));
+        if(Property.Possessed(o,"OTxtRepr3"))
+            SetProperty("OTxtRepr3",Property.Get(o,"OTxtRepr3"));
     }
 }
