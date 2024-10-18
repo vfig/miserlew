@@ -59,7 +59,7 @@ tag OldOpenState Open Closed Opening Closing
 // Tags for various objects for when they "Activate"
 // what is the type of device which has activated?
 
-tag DeviceType Gong BellSm HealPot AirPot HolyH20 BlueLight CauldLvr MoldLvr CrunchyFood RmzAlarm DinnerBell Alarm FlickerLight ElevPlat ElevHmr Keys Loot SoftFood
+tag DeviceType Gong BellSm HealPot AirPot HolyH20 BlueLight CauldLvr MoldLvr CrunchyFood RmzAlarm DinnerBell Alarm FlickerLight ElevPlat ElevHmr Keys Loot SoftFood Padlock
 
 tag SwitchType BPush BPull BElev BRmz BBook LvWall LvThrow LvFloor1 LvFloor2 LvSlide LvPanel PPlate LvScope 
 

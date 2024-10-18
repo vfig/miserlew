@@ -37,7 +37,7 @@ class FlickerMomentary extends SqRootScript {
 
 class FrobLockSounds extends SqRootScript {
     function OnFrobWorldEnd() {
-        Sound.PlayEnvSchema(self, "Event Reject, Operation FrobLock",
+        Sound.PlayEnvSchema(self, "Event Reject, Operation OpenDoor",
             self, message().Frobber, eEnvSoundLoc.kEnvSoundAtObjLoc);
     }
 }
