@@ -67,3 +67,56 @@ class SlayOwnedWhenUnlocked extends SqRootScript {
         }
     }
 }
+
+class NotActuallyLoot extends SqRootScript {
+    function OnBeginScript() {
+        print(""+self+" is not actually loot.");
+    }
+    // TODO: on begin script, change the texture
+    //       on end script, change it back
+    //       when a global trigger happens, remove M-NotActuallyLoot
+}
+
+/*
+    BUGS:
+        - first item picked up after "not treasure", if loot pile is selected,
+          still gets combined into loot pile!!
+            (i think this happens because M-NotActuallyLoot gets added back on
+                to the loot stack in the inventory)
+            (its okay, we only need two switches: into not-loot, at game start,
+                and into loot after -- you will not have a loot stack in either case!)
+            (alternatively, enumerate MetaProp links from SwitchTreasure to find
+              concretes that are not contained by the player, and only add the
+              metaprop onto them?)
+        - replace textures are not copied over when a combine happens (see TBP solution)
+
+    TODO:
+        - add other texture info to design notes
+        - swap textures!!
+
+*/
+
+
+class TreasureSwitcher extends SqRootScript {
+    function OnSim() {
+        // if (message().starting) {
+        //     MakeLoot(false);
+        // }
+    }
+
+    function OnTurnOn() {
+        MakeLoot(true);
+    }
+
+    function OnTurnOff() {
+        MakeLoot(false);
+    }
+
+    function MakeLoot(isLoot) {
+        if (isLoot) {
+            Object.RemoveMetaPropertyFromMany("M-NotActuallyLoot", "@M-NotActuallyLoot");
+        } else {
+            Object.AddMetaPropertyToMany("M-NotActuallyLoot", "@SwitchTreasure,-@M-NotActuallyLoot");
+        }
+    }
+}
