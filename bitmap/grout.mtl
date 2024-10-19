@@ -1,0 +1,9 @@
+render_material_only 1
+
+render_pass {
+    alpha 0.25
+    ani_rate 50
+    blend INV_DST_COLOR ZERO
+    texture *_ 0 "tex\grout"
+    uv_mod SCROLL 0.0 0.125
+}

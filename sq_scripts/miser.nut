@@ -313,3 +313,50 @@ class Sequencer extends SqRootScript {
         return parsed_sequence;
     }
 }
+
+class ForceField extends SqRootScript {
+    function OnTurnOn() {
+        Activate(true);
+    }
+
+    function OnTurnOff() {
+        Activate(false);
+    }
+
+    function Activate(enable) {
+        SetProperty("CollisionType", (enable? 1:0));    // Bounce / None
+        SetProperty("RenderType", (enable? 0:1));       // Normal / Not Rendered
+    }
+}
+
+/* LUGGED
+   For any especially heavy-seeming object (e.g. corpses, boulders).
+   When the player picks such a thing up, there's a sound effect and
+   he is slowed.
+   (copied from T2)
+   */
+class Lugged extends SqRootScript {
+    function OnContained() {
+        if (Object.InheritsFrom(message().container, "Avatar")) {
+            if (message().event==eContainsEvent.kContainAdd) {
+                Sound.PlaySchemaAmbient(self, "garlift");
+                DrkInv.AddSpeedControl("LuggedHeavy", 0.6, 0.9);
+            } else if (message().event==eContainsEvent.kContainRemove) {
+                Sound.PlaySchemaAmbient(self, "gardrop");
+                DrkInv.RemoveSpeedControl("LuggedHeavy");
+            }
+        }
+    }
+}
+
+class StartsOff extends SqRootScript
+{
+    // Put this on a n object to send it TurnOff when the mission starts.
+
+    function OnSim()
+    {
+        if (message().starting) {
+            SendMessage(self, "TurnOff");
+        }
+    }
+}
