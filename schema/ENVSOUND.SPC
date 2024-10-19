@@ -49,7 +49,7 @@ tag_int Health
 //DOORS & SUCH
 
 //Door Types
-tag DoorType Wood1Sm Wood2Lg Metal Metal2Hvy Sliding Cell Chain BoxWood BoxMoney BoxChest OblManhole Sarcof SkyLight Barricade
+tag DoorType Wood1Sm Wood2Lg Metal Metal2Hvy Sliding Cell Chain BoxWood BoxMoney BoxChest OblManhole Sarcof SkyLight Barricade JawTrap
 
 //Door states 
 tag OpenState Open Closed Opening Closing

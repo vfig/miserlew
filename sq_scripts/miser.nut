@@ -210,6 +210,7 @@ class Sequencer extends SqRootScript {
                 DoNextStep();
             }
         } else {
+            print("turning off???");
             local timer = GetData("Timer");
             if (timer!=null && timer!=0) {
                 KillTimer(timer);
@@ -243,7 +244,8 @@ class Sequencer extends SqRootScript {
             case SequenceAction.Wait:
                 local param = GetNextAction().tointeger();
                 local s = param/1000.0;
-                SetOneShotTimer("SequencerWait", s);
+                local t = SetOneShotTimer("SequencerWait", s);
+                SetData("Timer", t);
                 return;
             // Actions that keep looping:
             case SequenceAction.TurnOn:
