@@ -25,3 +25,8 @@ archetype DOORS
 volume -1
 doors1c
 env_tag (Event StateChange) (DoorType JawTrap)  (OpenState Closed) (OldOpenState Open Opening Closing)
+
+// CHOMPER FIRE
+schema chomp_fire
+volume -1
+h_gs3

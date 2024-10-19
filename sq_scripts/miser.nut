@@ -210,7 +210,6 @@ class Sequencer extends SqRootScript {
                 DoNextStep();
             }
         } else {
-            print("turning off???");
             local timer = GetData("Timer");
             if (timer!=null && timer!=0) {
                 KillTimer(timer);
