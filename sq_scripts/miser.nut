@@ -196,7 +196,6 @@ class Sequencer extends SqRootScript {
 
     function OnTimer() {
         if (message().name=="SequencerWait") {
-            print("SEQUENCER> wait done.");
             DoNextStep();
         }
     }
@@ -240,23 +239,19 @@ class Sequencer extends SqRootScript {
             // Actions that are one-shot:
             case SequenceAction.Stop:
                 EnableMe(false);
-                print("SEQUENCER> stop.");
                 return;
             case SequenceAction.Wait:
                 local param = GetNextAction().tointeger();
                 local s = param/1000.0;
-                print("SEQUENCER> wait for "+s+" ...");
                 SetOneShotTimer("SequencerWait", s);
                 return;
             // Actions that keep looping:
             case SequenceAction.TurnOn:
                 local who = GetNextAction().tostring();
-                print("SEQUENCER> turn on '"+who+"'.");
                 Link.BroadcastOnAllLinksData(self, "TurnOn", "ScriptParams", who);
                 break;
             case SequenceAction.TurnOff:
                 local who = GetNextAction().tostring();
-                print("SEQUENCER> turn off '"+who+"'.");
                 Link.BroadcastOnAllLinksData(self, "TurnOff", "ScriptParams", who);
                 break;
             }
@@ -275,21 +270,16 @@ class Sequencer extends SqRootScript {
         foreach (link in links) {
             local data = LinkTools.LinkGetData(link, "");
             names[data] <- true;
-            print("SEQUENCER> found name '"+data+"'");
         }
         local pattern = userparams().Sequence;
         pattern = pattern.tostring()+",";
-        print("SEQUENCER> pattern: '"+pattern+"'");
         local seq = [];
         local start = 0;
         while(start<pattern.len()) {
-            print("SEQUENCER>   start: "+start);
             local end = pattern.find(",", start);
             if (end==null)
                 end = pattern.len();
             local bit = pattern.slice(start, end);
-            print("SEQUENCER>   end: "+end);
-            print("SEQUENCER>   bit: '"+bit+"'");
             start = end+1;
             local delay;
             try {
@@ -298,11 +288,9 @@ class Sequencer extends SqRootScript {
                 delay = 0;
             }
             if (delay>0) {
-                print("SEQUENCER>   > Wait("+delay+")");
                 seq.push(SequenceAction.Wait);
                 seq.push(delay);
             } else if (bit=="stop") {
-                print("SEQUENCER>   > Stop()");
                 seq.push(SequenceAction.Stop);
                 break;
             } else {
@@ -312,10 +300,6 @@ class Sequencer extends SqRootScript {
                 if (! (bit in names)) {
                     print("WARNING: Sequencer "+self+" has no ScriptParams link matching '"+bit+"'");
                 }
-                if (off)
-                    print("SEQUENCER>   > TurOff("+bit+")");
-                else
-                    print("SEQUENCER>   > TurnOn("+bit+")");
                 seq.push(off? SequenceAction.TurnOff:SequenceAction.TurnOn);
                 seq.push(bit);
             }
@@ -324,10 +308,6 @@ class Sequencer extends SqRootScript {
             parsed_sequence = seq;
         } else {
             parsed_sequence = [SequenceAction.Stop];
-        }
-        print("SEQUENCER> Parsed sequence:");
-        for (local i=0; i<parsed_sequence.len(); i++) {
-            print("SEQUENCE>   "+i+": "+parsed_sequence[i]);
         }
         return parsed_sequence;
     }
