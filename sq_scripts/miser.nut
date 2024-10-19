@@ -103,7 +103,6 @@ class NotActuallyLoot extends SqRootScript {
     }
 }
 
-
 class TreasureSwitcher extends SqRootScript {
     // BUG: If you change from gold back to stone after the player picks some up
     //      (i.e. they have a loot stack in their inventory), then sometimes the
@@ -155,5 +154,181 @@ class ResLoot extends SqRootScript
             SetProperty("OTxtRepr2",Property.Get(o,"OTxtRepr2"));
         if(Property.Possessed(o,"OTxtRepr3"))
             SetProperty("OTxtRepr3",Property.Get(o,"OTxtRepr3"));
+    }
+}
+
+/* Sequence a pattern of TurnOn/TurnOff messages to a set of objects.
+ *
+ *    1. Add a ScriptParams link to each object to control, and set
+ *       its data to a single letter A-Z.
+ *
+ *    2. Add a Design Note parameter, "Sequence", with the pattern
+ *       made of comma-separated commands:
+ *
+ *           a      TurnOn object "a".
+ *           !a     TurnOff object "a".
+ *           123    pause for 123 milliseconds.
+ *           stop   stop the sequence and turn off.
+ *
+ *    Turning the sequencer on will start the pattern from the beginning.
+ *    Turning it off will stop the pattern, and turn off all the objects.
+ */
+enum SequenceAction {
+    Stop,
+    Wait,
+    TurnOn,
+    TurnOff,
+}        
+class Sequencer extends SqRootScript {
+    parsed_sequence = [];
+
+    function OnBeginScript() {
+        EnableMe(false);
+    }
+
+    function OnTurnOn() {
+        EnableMe(true);
+    }
+
+    function OnTurnOff() {
+        EnableMe(false);
+    }
+
+    function OnTimer() {
+        if (message().name=="SequencerWait") {
+            print("SEQUENCER> wait done.");
+            DoNextStep();
+        }
+    }
+
+    function EnableMe(enable) {
+        if (enable) {
+            local wasEnabled = (GetData("Enable")==1);
+            if (! wasEnabled) {
+                SetData("Enable", 1);
+                SetData("Step", -1);
+                SetData("Timer", 0);
+                DoNextStep();
+            }
+        } else {
+            local timer = GetData("Timer");
+            if (timer!=null && timer!=0) {
+                KillTimer(timer);
+            }
+            Link.BroadcastOnAllLinks(self, "TurnOff", "ScriptParams");
+            SetData("Enable", 0);
+            SetData("Step", -1);
+            SetData("Timer", 0);
+        }
+    }
+
+    function GetNextAction() {
+        local seq = ParseSequence();
+        if (seq.len()==0)
+            return SequenceAction.Stop;
+        local step = GetData("Step").tointeger()+1;
+        if (step>=seq.len())
+            step = 0;
+        SetData("Step", step);
+        return seq[step];
+    }
+
+    function DoNextStep() {
+        while (true) {
+            local action = GetNextAction();
+            switch(action) {
+            // Actions that are one-shot:
+            case SequenceAction.Stop:
+                EnableMe(false);
+                print("SEQUENCER> stop.");
+                return;
+            case SequenceAction.Wait:
+                local param = GetNextAction().tointeger();
+                local s = param/1000.0;
+                print("SEQUENCER> wait for "+s+" ...");
+                SetOneShotTimer("SequencerWait", s);
+                return;
+            // Actions that keep looping:
+            case SequenceAction.TurnOn:
+                local who = GetNextAction().tostring();
+                print("SEQUENCER> turn on '"+who+"'.");
+                Link.BroadcastOnAllLinksData(self, "TurnOn", "ScriptParams", who);
+                break;
+            case SequenceAction.TurnOff:
+                local who = GetNextAction().tostring();
+                print("SEQUENCER> turn off '"+who+"'.");
+                Link.BroadcastOnAllLinksData(self, "TurnOff", "ScriptParams", who);
+                break;
+            }
+        }
+    }
+
+    function ParseSequence() {
+        if (parsed_sequence.len()>0)
+            return parsed_sequence;
+        if (! ("Sequence" in userparams())) {
+            parsed_sequence = [SequenceAction.Stop];
+            return parsed_sequence;
+        }
+        local names = {};
+        local links = Link.GetAll("ScriptParams", self);
+        foreach (link in links) {
+            local data = LinkTools.LinkGetData(link, "");
+            names[data] <- true;
+            print("SEQUENCER> found name '"+data+"'");
+        }
+        local pattern = userparams().Sequence;
+        pattern = pattern.tostring()+",";
+        print("SEQUENCER> pattern: '"+pattern+"'");
+        local seq = [];
+        local start = 0;
+        while(start<pattern.len()) {
+            print("SEQUENCER>   start: "+start);
+            local end = pattern.find(",", start);
+            if (end==null)
+                end = pattern.len();
+            local bit = pattern.slice(start, end);
+            print("SEQUENCER>   end: "+end);
+            print("SEQUENCER>   bit: '"+bit+"'");
+            start = end+1;
+            local delay;
+            try {
+                delay = bit.tointeger();
+            } catch(e) {
+                delay = 0;
+            }
+            if (delay>0) {
+                print("SEQUENCER>   > Wait("+delay+")");
+                seq.push(SequenceAction.Wait);
+                seq.push(delay);
+            } else if (bit=="stop") {
+                print("SEQUENCER>   > Stop()");
+                seq.push(SequenceAction.Stop);
+                break;
+            } else {
+                local off = (bit.slice(0,1)=="!");
+                if (off)
+                    bit = bit.slice(1);
+                if (! (bit in names)) {
+                    print("WARNING: Sequencer "+self+" has no ScriptParams link matching '"+bit+"'");
+                }
+                if (off)
+                    print("SEQUENCER>   > TurOff("+bit+")");
+                else
+                    print("SEQUENCER>   > TurnOn("+bit+")");
+                seq.push(off? SequenceAction.TurnOff:SequenceAction.TurnOn);
+                seq.push(bit);
+            }
+        }
+        if (seq.len()>0) {
+            parsed_sequence = seq;
+        } else {
+            parsed_sequence = [SequenceAction.Stop];
+        }
+        print("SEQUENCER> Parsed sequence:");
+        for (local i=0; i<parsed_sequence.len(); i++) {
+            print("SEQUENCE>   "+i+": "+parsed_sequence[i]);
+        }
+        return parsed_sequence;
     }
 }
