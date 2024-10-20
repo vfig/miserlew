@@ -360,3 +360,125 @@ class StartsOff extends SqRootScript
         }
     }
 }
+
+class PedestalPuzzle extends SqRootScript {
+    function OnTurnOn() {
+        local sender = message().from;
+        if (! Link.AnyExist("ScriptParams", self, sender)) {
+            Link.Create("ScriptParams", self, sender);
+        }
+        Update();
+    }
+
+    function OnTurnOff() {
+        local sender = message().from;
+        local link = Link.GetOne("ScriptParams", self, sender);
+        if (link!=0) {
+            Link.Destroy(link);
+        }
+        Update();
+    }
+
+    function GetInputState() {
+        local inputs = {};
+        local links = Link.GetAll("~ControlDevice", self);
+        foreach (link in links) {
+            local name = Object.GetName(LinkDest(link));
+            if (name!=null) {
+                inputs[name] <- false;
+            }
+        }
+        links = Link.GetAll("ScriptParams", self);
+        foreach (link in links) {
+            local o = LinkDest(link);
+            local name = Object.GetName(o);
+            if (name!=null
+            && name in inputs) {
+                inputs[name] = true;
+            }
+        }
+        return inputs;
+    }
+
+    function ApplyResults(results) {
+        local targets = {};
+        local links = Link.GetAll("ControlDevice", self);
+        foreach (link in links) {
+            local o = LinkDest(link);
+            local name = Object.GetName(o);
+            if (name!=null) {
+                targets[name] <- o;
+            }
+        }
+        foreach (name,isOn in results) {
+            if (! (name in targets)) continue;
+            local o = targets[name];
+            local link = Link.GetOne("ScriptParams", self, o);
+            local wasOn = (link!=0);
+            if (isOn && !wasOn) {
+                Link.Create("ScriptParams", self, o);
+                SendMessage(o, "TurnOn");
+            } else if (!isOn && wasOn) {
+                Link.Destroy(link);
+                SendMessage(o, "TurnOff");
+            }
+        }
+    }
+
+    function Update() {
+        local inputs = GetInputState();
+        local results = Calculate(inputs);
+        ApplyResults(results);
+    }
+
+    function Calculate(input) {
+        local A = input["PedestalA"];
+        local B = input["PedestalB"];
+        local C = input["PedestalC"];
+        local D = input["PedestalD"];
+        local field1_open = (A || B) && !(A && B) || (C && D);
+        local field2_open = (C && D);
+        return {
+            "ForceField1": !field1_open,
+            "ForceField2": !field2_open,
+        };
+    }
+}
+
+class FaceNorth extends SqRootScript {
+    function OnBeginScript() {
+        PostMessage(self, "RestoreFacing");
+    }
+
+    function OnContained() {
+        if (message().event==eContainsEvent.kContainRemove) {
+            // Need to wait a frame for the teleport to work.
+            PostMessage(self, "RestoreFacing");
+        }
+    }
+
+    function OnRestoreFacing() {
+        local f = vector(0.0,0.0,270.0);
+        Object.Teleport(self, Object.Position(self), f);
+    }
+}
+
+class FaceOutward extends SqRootScript {
+    function OnBeginScript() {
+        PostMessage(self, "RestoreFacing");
+    }
+
+    function OnContained() {
+        if (message().event==eContainsEvent.kContainRemove) {
+            // Need to wait a frame for the teleport to work.
+            PostMessage(self, "RestoreFacing");
+        }
+    }
+
+    function OnRestoreFacing() {
+        local mid = 0.5*(Object.Position("PedestalA").x+Object.Position("PedestalB").x);
+        local northern = (Object.Position(self).x<mid);
+        local facing = vector(0.0,0.0,northern?90.0:270.0);
+        Object.Teleport(self, Object.Position(self), facing);
+    }
+}
