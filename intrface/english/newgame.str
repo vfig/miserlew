@@ -1,0 +1,15 @@
+// NOTE FOR TRANSLATORS: Most of this is the original text from Thief Gold,
+// except the mission title. So you should hopefully have a translation
+// already that you can copy paste.
+
+difficulty: "Difficulty:"
+// We don't really want the training mission button.
+// Easiest thing to do is leave it blank.
+start_training: "Al-Bakhila"
+skip_training: "The Miser"
+options: "Options"
+cancel: "Cancel" 
+
+diff_0:  "Normal"
+diff_1:  "Hard"
+diff_2:  "Expert"

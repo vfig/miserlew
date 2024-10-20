@@ -551,6 +551,12 @@ class MultiKey extends SqRootScript {
 }
 
 class SadimCrystal extends SqRootScript {
+    function OnSim() {
+        if (message().starting) {
+            Quest.Set("DidAttackCrystal", 0);
+        }
+    }
+
     function OnFrobWorldEnd() {
         if (! Object.HasMetaProperty(self, "FrobHeatSource")) {
             Link.BroadcastOnAllLinks(self, "TurnOn", "ControlDevice");
@@ -559,5 +565,51 @@ class SadimCrystal extends SqRootScript {
 
     function OnTurnOff() {
         Object.RemoveMetaProperty(self, "FrobHeatSource");
+    }
+
+    function OnSlashStimStimulus() {
+        if (message().intensity>=1.0) {
+            HandleDamage();
+        }
+    }
+
+    function OnPokeStimStimulus() {
+        if (message().intensity>=1.0) {
+            HandleDamage();
+        }
+    }
+
+    function HandleDamage() {
+        print("## hit the crystal")
+        if (Quest.Get("goal_state_1")==0) {
+            Quest.Set("goal_state_1", 2); // Cancel "Smash it"
+            if (Quest.Get("goal_visible_1")!=0) {
+                Quest.Set("goal_visible_2", 1); // "Instead, take it"
+                Object.RemoveMetaProperty("TheSadimCrystal", "FrobInert");
+            }
+        }
+    }
+}
+
+class ShowCrystalGoal extends SqRootScript {
+    function OnFrobWorldEnd() {
+        if (! IsDataSet("DidFrob")) {
+            print("## frobbed the memo")
+            SetData("DidFrob", 1);
+            SetOneShotTimer("ShowGoal", 0.5);
+        }
+    }
+
+    function OnTimer() {
+        if (message().name=="ShowGoal") {
+            if (Quest.Get("goal_state_1")==0) {
+                print("## try attacking the crystal")
+                Quest.Set("goal_visible_1", 1); // "Smash it"
+            } else {
+                print("## already attacked the crystal")
+                Quest.Set("goal_visible_3", 1); // "Take it"
+                Object.RemoveMetaProperty("TheSadimCrystal", "FrobInert");
+            }
+        }
     }
 }
