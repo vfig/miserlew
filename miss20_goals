@@ -1,0 +1,26 @@
+; Creates goals for Miser mission. Run this from Dromed: "run_cmd_script miss20_goals"
+
+; First make sure all goals are reset.
+run_cmd_script delete_goals
+
+; These are just here for easy copy and paste.
+;quest_create_mis goal_state_Z, 0
+;quest_create_mis goal_visible_Z, 0
+;quest_create_mis goal_reverse_Z, 0
+;quest_create_mis goal_type_Z, 0
+;quest_create_mis goal_target_Z, 0
+;quest_create_mis goal_irreversible_Z, 0
+;quest_create_mis goal_final_Z, 0
+;quest_create_mis goal_max_diff_Z, 0
+;quest_create_mis goal_min_diff_Z, 0
+;quest_create_mis goal_loot_Z, 0
+;quest_create_mis goal_gold_Z, 0
+;quest_create_mis goal_gems_Z, 0
+;quest_create_mis goal_goods_Z, 0
+;quest_create_mis goal_special_Z, 0
+
+; 0: The first objective
+quest_create_mis goal_state_0, 0
+quest_create_mis goal_visible_0, 1
+
+mprint Goals updated
