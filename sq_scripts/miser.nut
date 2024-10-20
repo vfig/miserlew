@@ -482,3 +482,70 @@ class FaceOutward extends SqRootScript {
         Object.Teleport(self, Object.Position(self), facing);
     }
 }
+
+class MultiKeyLock extends SqRootScript {
+    function OnTakeKey() {
+        local key = message().data;
+        // Try to place the key.
+        local missingKeyCount = 0;
+        local placedLink = 0;
+        local links = Link.GetAll("ScriptParams", self);
+        foreach (link in links) {
+            local data = LinkTools.LinkGetData(link, "");
+            if (data.tostring().tolower()=="multikeypos") {
+                // Place this key first, then count empty places.
+                if (placedLink==0) {
+                    PlaceKeyAt(key, LinkDest(link));
+                    placedLink = link;
+print("  found place for key at: "+LinkDest(link));
+                } else {
+                    missingKeyCount++;
+print("  found empty place");
+                }
+            }
+        }
+        // Now we have finished iterating, we can destroy the link.
+        if (placedLink!=0)
+            Link.Destroy(placedLink);
+        // Return true when all places are filled (whether we took this
+        // key or not).
+        Reply(missingKeyCount==0);
+    }
+
+    function PlaceKeyAt(key, marker) {
+        local stackCount = 1;
+        if (Property.Possessed(key, "StackCount")) {
+            stackCount = Property.Get(key, "StackCount");
+        }
+        if (stackCount<=1) {
+            Container.Remove(key);
+        } else {
+            Property.SetSimple(key, "StackCount", stackCount-1);
+            key = Object.Create(key);
+        }
+        Property.Set(key, "PhysType", "Type", 3); // None
+        Property.Set(key, "FrobInfo", "World Action", 0);
+        Object.Teleport(key, vector(), vector(), marker);
+        Link.Create("DetailAttachement", key, marker);
+    }
+}
+
+class MultiKey extends SqRootScript {
+    function OnFrobToolEnd() {
+        // We let StdKey do its thing only if the key could not be placed.
+        local key = message().SrcObjId;
+        local lock = message().DstObjId;
+        local fits = Key.TryToUseKey(key, lock, eKeyUse.kKeyUseCheck);
+        local isPlayer = (message().Frobber==object("Player"));
+        if (fits) {
+            local allKeysPlaced = SendMessage(lock, "TakeKey", key);
+            if (! allKeysPlaced) {
+                local tags = "Event StateChange, LockState Unlocked";
+                if (isPlayer)
+                    tags = tags + ", CreatureType Player";
+                Sound.PlayEnvSchema(lock , tags, lock, 0, eEnvSoundLoc.kEnvSoundAtObjLoc);
+                BlockMessage();
+            }
+        }
+    }
+}
