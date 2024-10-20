@@ -549,3 +549,15 @@ class MultiKey extends SqRootScript {
         }
     }
 }
+
+class SadimCrystal extends SqRootScript {
+    function OnFrobWorldEnd() {
+        if (! Object.HasMetaProperty(self, "FrobHeatSource")) {
+            Link.BroadcastOnAllLinks(self, "TurnOn", "ControlDevice");
+        }
+    }
+
+    function OnTurnOff() {
+        Object.RemoveMetaProperty(self, "FrobHeatSource");
+    }
+}
