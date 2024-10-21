@@ -42,32 +42,6 @@ class FrobLockSounds extends SqRootScript {
     }
 }
 
-class RevealDattachWhenUnlocked extends SqRootScript {
-    function OnNowUnlocked() {
-        // Reveal the dattached fake key.
-        local links = Link.GetAll("~DetailAttachement", self);
-        foreach (link in links) {
-            local target = LinkDest(link);
-            if (Property.Possessed(target, "RenderAlpha")) {
-                Property.SetSimple(target, "RenderAlpha", 1.0);
-            }
-        }
-    }
-}
-
-class SlayOwnedWhenUnlocked extends SqRootScript {
-    function OnNowUnlocked() {
-        // T1 doesn't Slay keys on use, so we have to. We keep track of our
-        // key with an Owns link. Of course this only works because there is
-        // just a single door for this key.
-        local links = Link.GetAll("Owns", self);
-        foreach (link in links) {
-            local target = LinkDest(link);
-            Damage.Slay(target, self);
-        }
-    }
-}
-
 class NotActuallyLoot extends SqRootScript {
     function OnBeginScript() {
         SwitchTextures("Stone");
@@ -497,10 +471,8 @@ class MultiKeyLock extends SqRootScript {
                 if (placedLink==0) {
                     PlaceKeyAt(key, LinkDest(link));
                     placedLink = link;
-print("  found place for key at: "+LinkDest(link));
                 } else {
                     missingKeyCount++;
-print("  found empty place");
                 }
             }
         }
@@ -580,7 +552,6 @@ class SadimCrystal extends SqRootScript {
     }
 
     function HandleDamage() {
-        print("## hit the crystal")
         if (Quest.Get("goal_state_1")==0) {
             Quest.Set("goal_state_1", 2); // Cancel "Smash it"
             if (Quest.Get("goal_visible_1")!=0) {
@@ -594,7 +565,6 @@ class SadimCrystal extends SqRootScript {
 class ShowCrystalGoal extends SqRootScript {
     function OnFrobWorldEnd() {
         if (! IsDataSet("DidFrob")) {
-            print("## frobbed the memo")
             SetData("DidFrob", 1);
             SetOneShotTimer("ShowGoal", 0.5);
         }
@@ -603,10 +573,8 @@ class ShowCrystalGoal extends SqRootScript {
     function OnTimer() {
         if (message().name=="ShowGoal") {
             if (Quest.Get("goal_state_1")==0) {
-                print("## try attacking the crystal")
                 Quest.Set("goal_visible_1", 1); // "Smash it"
             } else {
-                print("## already attacked the crystal")
                 Quest.Set("goal_visible_3", 1); // "Take it"
                 Object.RemoveMetaProperty("TheSadimCrystal", "FrobInert");
             }
