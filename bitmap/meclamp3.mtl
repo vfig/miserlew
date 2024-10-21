@@ -1,0 +1,7 @@
+render_material_only 1
+
+render_pass {
+    shaded 1
+    texture "tex\meclamp3"
+    uv_mod ROTATE 225.0
+}
