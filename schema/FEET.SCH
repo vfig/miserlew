@@ -335,9 +335,16 @@ volume -700
 ropecrk1 ropecrk2 ropecrk3 ropecrk4
 env_tag (Event Climbstep) (CreatureType Player) (Material Rope)
 
+//CLIMBING A ROPE
+schema climb_chain
+archetype WEAPONS
+volume -700
+ft_hh1 ft_hh2 ft_hh3 ft_hh4
+env_tag (Event Climbstep) (CreatureType Player) (Material Chain)
+
 //CLIMBING A LADDER
 schema climb_ladder
-volume -400
+volume -200
 no_repeat
 ladder1 ladder2 ladder3 ladder4 ladder5
 env_tag (Event Climbstep) (CreatureType Player) (Material Ladder)

@@ -104,9 +104,9 @@ tag WeaponType2 Sword Hammer Blackjack Flashbomb Mine ActiveMine GasMine ActiveG
 //Material tags//
 /////////////////
 
-tag Material Carpet Ceramic Earth Flesh Glass Gravel Ice Liquid Ladder Metal Rope Stone Tile Vegetation Wood ZombiePart
+tag Material Carpet Ceramic Chain Earth Flesh Glass Gravel Ice Liquid Ladder Metal Rope Stone Tile Vegetation Wood ZombiePart
 
-tag Material2 Carpet Ceramic Earth Flesh Glass Gravel Ice Liquid Ladder Metal Rope Stone Tile Vegetation Wood ZombiePart
+tag Material2 Carpet Ceramic Chain Earth Flesh Glass Gravel Ice Liquid Ladder Metal Rope Stone Tile Vegetation Wood ZombiePart
 
 ///////////////////////////
 //Tags for Creature types//

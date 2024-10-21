@@ -132,7 +132,7 @@ schema hwater
 archetype HIT_MATERIAL
 splash02
 env_tag (Event MediaTrans) (Material Carpet Ceramic Earth Glass Gravel Ice) (Material2 Liquid) 
-env_tag (Event MediaTrans) (Material Liquid) (Material2 Metal Rope Stone Tile Vegetation Wood) 
+env_tag (Event MediaTrans) (Material Liquid) (Material2 Metal Rope Chain Stone Tile Vegetation Wood) 
 
 
 
@@ -234,7 +234,7 @@ schema hit_magic
 archetype HIT_PROJECTILE
 hmagic1 hmagic2 hmagic3
 env_tag (Event Collision) (ArrowType MagicMissile) (Material Carpet Ceramic Earth Glass Gravel Ice Liquid Ladder)
-env_tag (Event Collision) (ArrowType MagicMissile) (Material Metal Rope Stone Tile Vegetation Wood) 
+env_tag (Event Collision) (ArrowType MagicMissile) (Material Metal Rope Chain Stone Tile Vegetation Wood) 
 
 //FIREBOLT HITS THE WALL
 schema hit_firebolt
@@ -283,7 +283,7 @@ schema sandbag_soft
 archetype HIT_PROJECTILE
 sandbag3 sandbag4
 env_tag (Event Collision) (MageShotType Sandbag) (Material Carpet Ceramic Earth) (Material2 Earth)
-env_tag (Event Collision) (MageShotType Sandbag) (Material Earth) (Material2 Flesh Glass Gravel Ice Ladder Rope)
+env_tag (Event Collision) (MageShotType Sandbag) (Material Earth) (Material2 Flesh Glass Gravel Ice Ladder Rope Chain)
 
 //SANDBAG HIT WATER
 schema sandbag_water
@@ -512,3 +512,8 @@ schema collapse_water
 archetype HIT_BODY
 collaps4
 
+schema player_chain
+archetype HIT_BODY
+volume -700
+chain1
+env_tag (Event Collision) (CreatureType Player) (Material Chain)
