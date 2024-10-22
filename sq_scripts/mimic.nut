@@ -24,6 +24,33 @@ PhysAttach
 
 */
 
+
+/* TODO
+
+    i think i can rewrite this to be more robust!
+    idea (not originally mine) is to PhysAttach the player to
+    a MovingTerrain with a self-linked TerrPt (speed 0?).
+
+    we can then move the TerrPt around maybe?
+    or DetailAttach the TerrPt to a door??
+
+    idk more investigation needed.
+
+    also want to get the offset done with a PossessPoint
+    DetailAttached to archetypes.
+
+    also want to have eye particle effects ParticleAttached
+    to archetypes.
+*/
+
+class PossessPoint extends SqRootScript {
+    function OnTurnOn() {
+        local player = Object.Named("Player");
+        SendMessage(player, "PossessMe", vector());
+    }
+}
+
+// TODO: obsolete
 class PossessMe extends SqRootScript {
     function ParseVector(s) {
         local v = vector();
