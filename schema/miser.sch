@@ -28,5 +28,11 @@ env_tag (Event StateChange) (DoorType JawTrap)  (OpenState Closed) (OldOpenState
 
 // CHOMPER FIRE
 schema chomp_fire
-volume -1
+volume -1000
 h_gs3
+
+// DEBUG SOUND
+schema debug_waterlp
+mono_loop 0 0
+volume -1
+waterlp3

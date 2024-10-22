@@ -581,3 +581,13 @@ class ShowCrystalGoal extends SqRootScript {
         }
     }
 }
+
+class DebugSoundGrenade extends SqRootScript {
+    function OnContained() {
+        if (message().event==eContainsEvent.kContainRemove) {
+            Sound.PlaySchemaAtObject(self, "debug_waterlp", self);
+        } else {
+            Sound.HaltSchema(self);
+        }
+    }
+}
