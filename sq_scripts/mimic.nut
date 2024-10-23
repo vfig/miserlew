@@ -48,6 +48,11 @@ class PossessPoint extends SqRootScript {
         local player = Object.Named("Player");
         SendMessage(player, "PossessMe", vector());
     }
+
+    function OnTurnOff() {
+        local player = Object.Named("Player");
+        SendMessage(player, "Exorcise");
+    }
 }
 
 // TODO: obsolete
@@ -384,6 +389,16 @@ class Possessor extends SqRootScript {
         }
     }
 
+    function OnExorcise() {
+        if (IsPossessing()) {
+            local wasAt = Possess.GetWasAt();
+            EndPossession(Object.Position(wasAt), Object.Facing(wasAt));
+        } else {
+            Reply(false);
+            return;
+        }
+    }
+
     function OnContainer() {
         if (IsPossessing()) {
             // If we pick up anything while possessed, send it to join the
@@ -450,6 +465,223 @@ class Possessor extends SqRootScript {
     }
 
     function BeginPossession(target, offset) {
+        if (IsPossessing()) {
+            print("ERROR! Tried to possess when already possessing. Fix this bug!");
+            return false;
+        }
+        if (Link.AnyExist("PhysAttach", self)) {
+            print("ERROR! Tried to possess when PhysAttached. Fix this bug!");
+            return false;
+        }
+
+        local anchor = Possess.GetAnchor();
+        local pointer = Possess.GetAnchorPointer();
+        local wasAt = Possess.GetWasAt();
+        local inv = Possess.GetInventory();
+        local frobL = Possess.GetFrobLeft();
+        local frobR = Possess.GetFrobRight();
+
+        if (Link.AnyExist("TPathInit", anchor)
+        || Link.AnyExist("TPath", target)) {
+            print("ERROR! Tried to possess when anchor already has path links. Fix this bug!");
+            return false;
+        }
+        if (Property.Possessed(anchor, "MovingTerrain")) {
+            print("ERROR! Tried to possess when anchor is already a MovingTerrain. Fix this bug!");
+            return false;
+        }
+
+        // Replace inventory with left/right frobabbles.
+        Object.Teleport(wasAt, vector(), vector(), self);
+        Container.MoveAllContents(self, inv, CTF_NONE);
+        Container.Add(frobL, self, 0, CTF_NONE);
+//        Container.Add(frobR, self, 0, CTF_NONE);
+
+        // NOTE: we set IsPossessing *after* inventory transfer, so that we can
+        //       safely check it in Container messages.
+        SetData("IsPossessing", true);
+        // And keep track of what we are possessing.
+        local link = Link.Create("ScriptParams", self, target);
+        LinkTools.LinkSetData(link, "", "Possessed");
+
+        // Get the player's head and body position relative to their origin.
+        // Headbob and lean will affect this a little, but we are ignoring that.
+        // The main thing is to properly handle standing vs crouched difference.
+        // NOTE: CalcRelTransform() returns the position of the child object
+        //       relative to the given submodel of the parent object; but we
+        //       want the submodel position relative to the parent origin,
+        //       which is the inverse; hence the negations.
+        local submodelOffset = vector();
+        local ignoreFacing = vector();
+        Object.CalcRelTransform(self, self, submodelOffset, ignoreFacing, 4, Possess.PLAYER_HEAD); // RelSubPhysModel
+        local playerHeadZ = -submodelOffset.z;
+        Object.CalcRelTransform(self, self, submodelOffset, ignoreFacing, 4, Possess.PLAYER_BODY); // RelSubPhysModel
+        local playerBodyZ = -submodelOffset.z;
+        Object.CalcRelTransform(self, self, submodelOffset, ignoreFacing, 4, Possess.PLAYER_FOOT); // RelSubPhysModel
+        local playerFootZ = -submodelOffset.z;
+        // Store the head and body positions so we can restore them when unpossessing.
+        SetData("PlayerHeadOffset", vector(0.0,0.0,playerHeadZ));
+        SetData("PlayerBodyOffset", vector(0.0,0.0,playerBodyZ));
+        SetData("PlayerFootOffset", vector(0.0,0.0,playerFootZ));
+        // Clear the player's collision response so they won't impact doors, AIs, etc.
+        local collisionType = GetProperty("CollisionType");
+        SetData("PlayerCollisionType", collisionType);
+        SetProperty("CollisionType", 0);
+
+        // Set up the anchor as a moving terrain, with the target as its starting TerrPt.
+        // NOTE: for this to work, we need to have two TerrPts (one will not suffice),
+        //       and they need to not be at the same position. But the speed can be zero,
+        //       so the MovingTerrain never actually moves. So here we use the target
+        //       itself as one of the TerrPts, and the pointer as the other (cause it
+        //       was handy).
+        // NOTE: this approach isnt any good if the attach point itself has to move, as
+        //       for example with a door.
+        Object.Teleport(anchor, vector(), vector(), target);
+        Object.Teleport(pointer, vector(1,0,0), vector(), target);
+        link = Link.Create("TPathInit", anchor, target);
+        //link = Link.Create("TPathNext", anchor, pointer);
+        link = Link.Create("TPath", target, pointer);
+        LinkTools.LinkSetData(link, "Speed", 0.0);
+        LinkTools.LinkSetData(link, "Pause (ms)", 0);
+        LinkTools.LinkSetData(link, "Path Limit?", true);
+        link = Link.Create("~TPath", target, pointer);
+        LinkTools.LinkSetData(link, "Speed", 0.0);
+        LinkTools.LinkSetData(link, "Pause (ms)", 0);
+        LinkTools.LinkSetData(link, "Path Limit?", true);
+        Property.Set(anchor, "MovingTerrain", "Active", true);
+
+        // And attach ourselves to the anchor.
+        Object.Teleport(self, vector(), vector(), anchor);
+        Link.Create("PhysAttach", self, anchor);
+
+/*
+        // NOTE: The camera position is not at the center of the player's head
+        //       submodel, but 0.8 units higher ("eyeloc"). So we offset the
+        //       camera down by the same amount to counteract this.
+        offset.z -= playerHeadZ+0.8;
+        local toPos = Object.ObjectToWorld(target, offset);
+        local toFacing = Object.Facing(target);
+        if (directAttachMode) {
+            if (! Object.HasMetaProperty(target, "M-PossessMouselookFix")) {
+                Object.AddMetaProperty(target, "M-PossessMouselookFix");
+            }
+
+            Object.Teleport(pointer, toPos, toFacing);
+            local d = Link.Create("DetailAttachement", pointer, target);
+            LinkTools.LinkSetData(d, "Type", 0); // Object
+            LinkTools.LinkSetData(d, "rel pos", offset);
+            LinkTools.LinkSetData(d, "Flags", 1); // No Auto-Delete
+
+            // TODO: if we want a fade to black, we apparently need to start it
+            //       before the teleport??? or maybe that is just a not-doing-it-
+            //       via-script thing.
+            Object.Teleport(self, vector(), vector(), pointer);
+            Link.Create("PhysAttach", self, target);
+
+            PostMessage(target, "PossessEnableFix", 1);
+            PostMessage(self, "PossessReanchor");
+        } else {
+            if (! Object.HasMetaProperty(anchor, "M-PossessMouselookFix")) {
+                Object.AddMetaProperty(anchor, "M-PossessMouselookFix");
+            }
+            Object.Teleport(anchor, toPos, toFacing);
+
+            // TODO: if we want a fade to black, we apparently need to start it
+            //       before the teleport??? or maybe that is just a not-doing-it-
+            //       via-script thing.
+            Object.Teleport(self, vector(), vector(), anchor);
+            Link.Create("PhysAttach", self, anchor);
+            PostMessage(anchor, "PossessEnableFix", 1);
+        }
+*/
+        // NOTE: We prevent frobbing most objects while possessed by generously
+        //       adding this metaproperty to all physical objects. This won't
+        //       work for any objects in e.g. the fnord or SFX trees have been
+        //       made frobbable; and it won't work for concrete objects with
+        //       a direct FrobInfo property on them making them frobbable.
+        //       Those must be avoided when using this script.
+        // NOTE: The PossessFrobs are both fnords *and* have a direct FrobInfo
+        //       property, so they will be unaffected, as they need to be.
+        // NOTE: If we only need right-frob, then we can change PossessFrobRight
+        //       to be a junk item, because *nothing* can be frobbed while
+        //       holding a junk item.
+//        Object.AddMetaPropertyToMany("M-NoFrobWhilePossessed", "@physical");
+
+        // TEMP: we don't have a way to manually detach yet, so automate it.
+        SetOneShotTimer("TempDetach", 5.0);
+    }
+
+    // function OnFoo() {
+    //     local anchor = Possess.GetAnchor();
+    //     Property.Set(anchor, "MovingTerrain", "Active", true);
+    // }
+
+    function EndPossession(position, facing) {
+        if (! IsPossessing()) {
+            print("ERROR! Tried to unpossess when not possessing. Fix this bug!");
+            return false;
+        }
+        EndTargeting(false);
+        // NOTE: we must clear IsPossessing *before* inventory restoration, so
+        //       that we won't react to the Container messages.
+        SetData("IsPossessing", false);
+        local target = GetPossessedObject();
+        local anchor = Possess.GetAnchor();
+        local pointer = Possess.GetAnchorPointer();
+        local wasAt = Possess.GetWasAt();
+        local inv = Possess.GetInventory();
+        local frobL = Possess.GetFrobLeft();
+        local frobR = Possess.GetFrobRight();
+        // Disconnect from the anchor (or target).
+        local link = Link.GetOne("PhysAttach", self, anchor);
+        if (link==0) {
+            link = Link.GetOne("PhysAttach", self, target);
+            if (link==0) {
+                print("ERROR! Unpossessed when not PhysAttached. Fix this bug!");
+            }
+        }
+        Link.Destroy(link);
+        // Disconnect the anchor.
+        Property.Set(anchor, "MovingTerrain", "Active", false);
+        Property.Remove(anchor, "MovingTerrain");
+        link = Link.GetOne("TPath", target, pointer);
+        if (link!=0)
+            Link.Destroy(link);
+        link = Link.GetOne("~TPath", target, pointer);
+        if (link!=0)
+            Link.Destroy(link);
+        link = Link.GetOne("TPathInit", anchor, target);
+        if (link!=0)
+            Link.Destroy(link);
+        link = Link.GetOne("TPathNext", anchor, target);
+        if (link!=0)
+            Link.Destroy(link);
+        // Disconnect from the possessed target.
+        link = GetPossessedLink();
+        if (link==0) {
+            print("ERROR! Unpossessed with no ScriptParams('Possessed') link. Fix this bug!");
+        }
+        Link.Destroy(link);
+        // Restore the player's collision response.
+        local collisionType = GetData("PlayerCollisionType");
+        SetProperty("CollisionType", collisionType);
+        // Restore player position.
+        Object.Teleport(self, position, facing);
+        // Restore inventory, setting the global flag to prevent loot sounds.
+        EnableLootSounds(false);
+        Container.Remove(frobL, self);
+        Container.Remove(frobR, self);
+        // TODO: will need to suppress loot sounds... maybe by making a custom
+        //       squirrel LootSounds to use in preference to gen's?
+        Container.MoveAllContents(inv, self, CTF_NONE);
+        EnableLootSounds(true);
+        // Park the anchor back at the origin ready for next time.
+        Object.Teleport(anchor, vector(), vector());
+        // Restore frobs.
+        Object.RemoveMetaPropertyFromMany("M-NoFrobWhilePossessed", "@physical");
+    }
+
+    function OldBeginPossession(target, offset) {
         if (IsPossessing()) {
             print("ERROR! Tried to possess when already possessing. Fix this bug!");
             return false;
@@ -571,7 +803,7 @@ class Possessor extends SqRootScript {
         SetOneShotTimer("TempDetach", 15.0);
     }
 
-    function EndPossession(position, facing) {
+    function OldEndPossession(position, facing) {
         if (! IsPossessing()) {
             print("ERROR! Tried to unpossess when not possessing. Fix this bug!");
             return false;
@@ -957,10 +1189,12 @@ class PossessFrobLeft extends SqRootScript {
         DarkUI.InvSelect(self);
     }
 
+/* TODO: restore or delete this idc
     function OnMessage() {
         // TEMP: print all other messages we might need to handle.
         print(GetTime()+": "+Object.GetName(self)+" ("+self+"): "+message().message);
     }
+*/
 }
 
 class PossessFrobRight extends SqRootScript {
@@ -1037,10 +1271,12 @@ class PossessFrobRight extends SqRootScript {
         }
     }
 
+/* TODO: restore or delete this idc
     function OnMessage() {
         // TEMP: print all other messages we might need to handle.
         print(GetTime()+": "+Object.GetName(self)+" ("+self+"): "+message().message);
     }
+*/
 }
 
 class PossessPhysCastProjectile extends SqRootScript {
