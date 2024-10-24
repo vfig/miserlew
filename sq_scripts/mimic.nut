@@ -43,16 +43,397 @@ PhysAttach
     to archetypes.
 */
 
-class PossessPoint extends SqRootScript {
+/* Objects involved in possession:
+
+     - Target: The object to be possessed, in the player's understanding. The
+       target must have M-PossessMe or M-PossessMeMovable, and a
+       ~DetailAttachement link from the Pointer (these may be configured on
+       the target's archetype or on the target concrete itself).
+       A target should also have a ~DetailAttachement or ~ParticleAttachement
+       link from the Eyes.
+
+     - Pointer: An instance of PossessPoint that marks where the camera should
+       go. The Pointer also detects the stim when the player casts the possess
+       spell.
+
+     - Eyes: When turned off, a visual indication of where the possess spell
+       should be cast to, and when turned on visual feedback of a possession
+       about to happen.
+
+           +---+
+           |Tar| <-DA-- [Pointer]
+           |get|
+           |   | <-DA/PA-- [Eyes]
+           |   |
+           |   |
+           +---+
+*/
+
+/* Converts TurnOn/TurnOff into possession/dispossession of the CD-linked
+ * object, or self if there is no outgoing CD link. */
+class TrapPossess extends SqRootScript {
     function OnTurnOn() {
+        print(self+": "+message().message+" from:"+message().from);
         local player = Object.Named("Player");
-        SendMessage(player, "PossessMe", vector());
+        local link = Link.GetOne("ControlDevice", self);
+        local target = (link!=0)? LinkDest(link) : self;
+        print("target:"+target);
+        SendMessage(player, "Possess", target);
     }
 
     function OnTurnOff() {
+        print(self+": "+message().message+" from:"+message().from);
         local player = Object.Named("Player");
-        SendMessage(player, "Exorcise");
+        local link = Link.GetOne("ControlDevice", self);
+        local target = (link!=0)? LinkDest(link) : self;
+        print("target:"+target);
+        SendMessage(player, "Dispossess", target);
     }
+}
+
+class Possessor extends SqRootScript {
+    // Possess: sent from anything, asks to begin possessing the 'data' object.
+    function OnPossess() {
+        print(self+": "+message().message+" from:"+message().from+" data:"+message().data);
+        local from = message().data.tointeger();
+        DoPossess(from);
+    }
+
+    // Dispossess: sent from anything, asks to stop possessing the 'data' object.
+    // Has no effect if the player is not already doing so.
+    function OnDispossess() {
+        print(self+": "+message().message+" from:"+message().from+" data:"+message().data);
+        local target = message().data.tointeger();
+        DoDispossess(target);
+    }
+
+    function OnBeginScript() {
+        // Create the objects we need; we will just keep them around forever.
+        local anchor = Object.BeginCreate("fnord");
+        Property.SetSimple(anchor, "ModelName", "unitsfer");
+        Property.Set(anchor, "PhysType", "Type", 0); // OBB
+        Property.Set(anchor, "PhysType", "# Submodels", 1);
+        Property.Set(anchor, "PhysDims", "Size", vector());
+        Property.Set(anchor, "PhysControl", "Controls Active", 8|16); // Location|Rotation
+        Property.SetSimple(anchor, "CollisionType", 0); // No collision
+        Property.SetSimple(anchor, "PhysCanMant", false);
+        Property.SetSimple(anchor, "PhysAIColl", false);
+        Object.EndCreate(anchor);
+
+        local terrpt1 = Object.BeginCreate("fnord");
+        Property.SetSimple(terrpt1, "ModelName", "unitsfer");
+        Object.EndCreate(terrpt1);
+
+        local terrpt2 = Object.BeginCreate("fnord");
+        Property.SetSimple(terrpt2, "ModelName", "unitsfer");
+        Object.EndCreate(terrpt2);
+
+        local link = Link.Create("ScriptParams", self, anchor);
+        LinkTools.LinkSetData(link, "", "PossessAnchor");
+
+        Link.Create("TPathInit", anchor, terrpt1);
+        Link.Create("TPathNext", anchor, terrpt2);
+
+        link = Link.Create("TPath", terrpt1, terrpt2);
+        LinkTools.LinkSetData(link, "Speed", 0.0);
+        LinkTools.LinkSetData(link, "Pause (ms)", 0);
+        LinkTools.LinkSetData(link, "Path Limit?", true);
+        link = Link.Create("TPath", terrpt2, terrpt1);
+        LinkTools.LinkSetData(link, "Speed", 0.0);
+        LinkTools.LinkSetData(link, "Pause (ms)", 0);
+        LinkTools.LinkSetData(link, "Path Limit?", true);
+
+        Property.Set(anchor, "MovingTerrain", "Active", false);
+    }
+
+    function GetPossessAnchor() {
+        foreach (link in Link.GetAll("ScriptParams", self))
+            if (LinkTools.LinkGetData(link, "")=="PossessAnchor")
+                return LinkDest(link);
+        return 0;
+    }
+
+    function GetTerrPt1(anchor) {
+        local link = Link.GetOne("TPathInit", anchor);
+        if (link==0)
+            return 0;
+        return LinkDest(link);
+    }
+
+    function GetTerrPt2(terrpt1) {
+        local link = Link.GetOne("TPath", terrpt1);
+        if (link==0)
+            return 0;
+        return LinkDest(link);
+    }
+
+    function DoPossess(target) {
+        local oldTarget = GetPossessedTarget();
+        if (target==oldTarget)
+            return;
+        if (oldTarget!=0) {
+            Detach(oldTarget);
+        }
+        Attach(target);
+        // TODO: update facing if needed?
+        // TODO: begin periodic updates if needed.
+    }
+
+    function DoDispossess(target) {
+        local oldTarget = GetPossessedTarget();
+        if (target!=oldTarget)
+            return;
+        Detach(oldTarget);
+    }
+
+    function GetPossessedTarget() {
+        local link = Link.GetOne("PhysAttach", self);
+        if (link==0)
+            return 0;
+        link = Link.GetOne("Population", LinkDest(link));
+        if (link==0)
+            return 0;
+        return LinkDest(link);
+    }
+
+    function Attach(target) {
+        local pos = Object.Position(target); // TODO: pointer pos + camera offset
+        SetAnchorPosition(pos);
+        local anchor = GetPossessAnchor();
+        Object.Teleport(self, vector(), vector(), anchor);
+        Link.Create("PhysAttach", self, anchor);
+        Link.Create("Population", anchor, target);
+    }
+
+    function Detach(target) {
+        local anchor = GetPossessAnchor();
+        Link.Destroy(Link.GetOne("PhysAttach", self, anchor));
+        Link.Destroy(Link.GetOne("Population", anchor, target));
+        Property.Set(anchor, "MovingTerrain", "Active", false);
+    }
+
+    function SetAnchorPosition(posWorldSpace) {
+        local anchor = GetPossessAnchor();
+        local terrpt1 = GetTerrPt1(anchor);
+        local terrpt2 = GetTerrPt2(terrpt1);
+        Object.Teleport(anchor, posWorldSpace, vector());
+        Object.Teleport(terrpt1, vector(), vector(), anchor);
+        Object.Teleport(terrpt2, vector(0,0,4), vector(), anchor);
+    }
+
+    //............ ugh so much to rewrite i am losing track of it all :(
+}
+
+
+class Foo {
+    // Create/update/destroy the possess attachment:
+
+    // PossessAttach: sent from the player. Create the objects and links needed
+    // for attachment. message().data must be a vector with the camera offset
+    // relative to the player's origin.
+    function OnPossessAttach() {
+        print(self+": "+message().message);
+        local from = message().from;
+        local who = GetPossessor();
+        if (who==from) {
+            // Already possessed by this player. Do nothing.
+            Reply(true);
+            return;
+        } else if (who!=0) {
+            // Possessed by something else? Disallow.
+            print("ERROR: already possessed.");
+            Reply(false);
+            return;
+        } else {
+            // like, really the possessor should be managing the possess links and state!
+            // all that the possessable needs to do is report the position of its
+            // pointer, if it needs regular updates, and do door hacks.
+        }
+        local link = Link.GetOne("Population", self);
+        if (link!=0) {
+
+            Detach(player);
+            print("ERROR: already attach.");
+            Reply(false);
+            return;
+        }
+
+        local cameraOffset = (message().data instanceof vector)? message().data:vector();
+        SetData("CameraOffset", cameraOffset);
+        local attachOffset = CalcAttachOffset(cameraOffset);
+        local attachFacing = CalcAttachFacing();
+        local ok = Attach(player, attachOffset, attachFacing);
+        if (! ok) {
+            print("ERROR: cannot attach.");
+            Reply(false);
+            return;
+        }
+        UpdateAttach(player);
+        Reply(true);
+    }
+
+    // PossessDetach: sent from the player. Unconditionally destroy the objects
+    // and links for attachment.
+    function OnPossessDetach() {
+        print(self+": "+message().message);
+        local player = Object.Named("Player");
+        Detach(player);
+    }
+
+    // PossessUpdate: sent from ourselves to update the attachment link.
+    function OnPossessUpdate() {
+        print(self+": "+message().message);
+        local player = Object.Named("Player");
+        UpdateAttach(player);
+    }
+
+    // Internals:
+
+    function GetPossessor() {
+        local link = Link.GetOne("Population", self);
+        if (link==0)
+            return 0;
+        return LinkDest(Link);
+    }
+
+    function CalcAttachOffset(cameraOffset) {
+        local pointer = FindPointer();
+        if (pointer==0) {
+            print("ERROR: cannot find PossessPoint; attaching at origin.");
+            return vector();
+        }
+        // PhysAttach offset is always in world space.
+        return Object.ObjectToWorld(pointer, cameraOffset)-Object.Position(self);
+    }
+
+    function CalcAttachFacing() {
+        local pointer = FindPointer();
+        if (pointer==0)
+            return Object.Facing(self);
+        return Object.Facing(pointer);
+    }
+
+    function FindPointer() {
+        foreach (link in Link.GetAll("~DetailAttachement", self)) {
+            if (Object.InheritsFrom(LinkDest(link), "PossessPoint")) {
+                return LinkDest(link);
+            }
+        }
+        return 0;
+    }
+
+    function UpdateAttach(player) {
+        local cameraOffset = GetData("CameraOffset");
+        local attachOffset = CalcAttachOffset(cameraOffset);
+        local link = GetAttachLink(player);
+        if (link==0)
+            return;
+        LinkTools.LinkSetData(link, "Offset", attachOffset);
+        if (NeedsUpdateAttach()) {
+            PostMessage(self, "PossessUpdate");
+        }
+    }
+
+    // For subclasses to implement:
+    function Attach(player, attachOffset, attachFacing) { return false; }
+    function Detach(player) {}
+    function GetAttachLink(player) { return 0; }
+    function NeedsUpdateAttach() { return false; }
+}
+
+class PossessableImmobile {
+    function Attach(player, attachOffset, attachFacing) {
+        // We create a MovingTerrain that the player will be attached to, along
+        // with points for a minimal path.
+        local anchor = CreateAnchor();
+        local terrpt1 = CreateTerrPt(vector());
+        local terrpt2 = CreateTerrPt(vector(0,0,1));
+        local link;
+        Link.Create("Owns", self, anchor);
+        Link.Create("Owns", self, terrpt1);
+        Link.Create("Owns", self, terrpt2);
+        // Create the links for the MovingTerrain and its path.
+        Link.Create("TPathInit", anchor, terrpt1);
+        link = Link.Create("TPath", terrpt1, terrpt2);
+        LinkTools.LinkSetData(link, "Speed", 0.0);
+        LinkTools.LinkSetData(link, "Pause (ms)", 0);
+        LinkTools.LinkSetData(link, "Path Limit?", true);
+        link = Link.Create("~TPath", terrpt1, terrpt2);
+        LinkTools.LinkSetData(link, "Speed", 0.0);
+        LinkTools.LinkSetData(link, "Pause (ms)", 0);
+        LinkTools.LinkSetData(link, "Path Limit?", true);
+        // Set things in motion (though it will not actually move, of course).
+        Property.Set(anchor, "MovingTerrain", "Active", true);
+        // Finally, attach the player to the anchor.
+        Object.Teleport(player, vector(), vector(), anchor);
+        link = Link.Create("PhysAttach", player, anchor);
+        LinkTools.LinkSetData(link, "Offset", attachOffset);
+        // TODO: send initial facing to the player?
+        return true;
+    }
+
+    function Detach(player) {
+        // NOTE: PhysAttach links must be destroyed before their target,
+        //       otherwise the player will still be unable to move.
+        local link = GetAttachLink(player);
+        if (link!=0)
+            Link.Destroy(link);
+        // Clean up the MovingTerrain and its TerrPts.
+        local objs = [];
+        foreach (link in Link.GetAll("Owns", self)) {
+            objs.append(LinkDest(link));
+        }
+        foreach (o in objs) {
+            Object.Destroy(o);
+        }
+    }
+
+    function GetAttachLink(player) {
+        local objs = [];
+        foreach (link in Link.GetAll("Owns", self)) {
+            objs.append(LinkDest(link));
+        }
+        foreach (o in objs) {
+            local link = Link.GetOne("PhysAttach", player, o);
+            if (link!=0)
+                return link;
+        }
+        return 0;
+    }
+
+    // Internals:
+
+    function CreateAnchor() {
+        local o = Object.BeginCreate("Marker");
+        Object.Teleport(o, vector(), vector(), self);
+        Property.Set(o, "PhysType", "Type", 0); // OBB
+        Property.Set(o, "PhysType", "# Submodels", 1);
+        Property.Set(o, "PhysDims", "Size", vector());
+        Property.Set(o, "PhysControl", "Controls Active", 8|16); // Location|Rotation
+        Property.SetSimple(o, "CollisionType", 0); // No collision
+        Property.SetSimple(o, "PhysCanMant", false);
+        Property.SetSimple(o, "PhysAIColl", false);
+        Object.EndCreate(o);
+        return o;
+    }
+
+    function CreateTerrPt(offset) {
+        local o = Object.BeginCreate("Marker");
+        Object.Teleport(o, offset, vector(), self);
+        Object.EndCreate(o);
+        return o;
+    }
+}
+
+class PossessableMobile {
+    function Attach(player, attachOffset, attachFacing) { return false; }
+    function Detach(player) {}
+    function NeedsUpdateAttach() { return true; }
+}
+
+
+class PossessPoint extends SqRootScript {
+    // TODO: detect a possession spell stim.
 }
 
 // TODO: obsolete
@@ -308,7 +689,22 @@ Possess <- {
     }
 };
 
-class Possessor extends SqRootScript {
+class OlderPossessor extends SqRootScript {
+    function OnPossessMe() {
+        print(self+": "+message().message);
+        // TODO: manage possession state.
+        // TODO: calculate the offset (playerHeadZ+0.8);
+        SendMessage(message().from, "PossessAttach", vector());
+    }
+
+    function OnDispossessMe() {
+        print(self+": "+message().message);
+        // TODO: manage possession state.
+        SendMessage(message().from, "PossessDetach");
+    }
+}
+
+class OldPossessor extends SqRootScript {
 
     // NOTE: A "PhysCast" is carried out by launching an invisible projectile
     //       that, when it collides, will send the Player a PhysCastHit message.
