@@ -200,6 +200,11 @@ class Possessor extends SqRootScript {
         local pos = Object.Position(target); // TODO: pointer pos + camera offset
         SetAnchorPosition(pos);
         local anchor = GetPossessAnchor();
+        // NOTE: Awareness links will be snapped by the teleport. However,
+        //       without the teleport the player is pulled at high speed to
+        //       the attach position, with their camera doing the whole
+        //       leaning-backward thing; and will also fly right through
+        //       solid terrain, which is perhaps undesirable.
         Object.Teleport(self, vector(), vector(), anchor);
         Link.Create("PhysAttach", self, anchor);
         Link.Create("Population", anchor, target);
