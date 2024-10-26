@@ -146,6 +146,13 @@ class Possessor extends SqRootScript {
         Property.Set(anchor, "MovingTerrain", "Active", false);
     }
 
+    function OnPossessUpdate() {
+        if (IsDataSet("IsPossessing")) {
+            UpdateAttachPosition();
+            PostMessage(self, "PossessUpdate");
+        }
+    }
+
     function GetPossessAnchor() {
         foreach (link in Link.GetAll("ScriptParams", self))
             if (LinkTools.LinkGetData(link, "")=="PossessAnchor")
@@ -171,19 +178,29 @@ class Possessor extends SqRootScript {
         local oldTarget = GetPossessedTarget();
         if (target==oldTarget)
             return;
+        SetData("IsPossessing", 1);
         if (oldTarget!=0) {
             Detach(oldTarget);
         }
         Attach(target);
         // TODO: update facing if needed?
-        // TODO: begin periodic updates if needed.
+        local reply = SendMessage(target, "NowPossessed");
+        if (reply=="Mobile") {
+            // Update attachment position every frame for a mobile possessable.
+            PostMessage(self, "PossessUpdate");
+        }
     }
 
     function DoDispossess(target) {
-        local oldTarget = GetPossessedTarget();
-        if (target!=oldTarget)
-            return;
-        Detach(oldTarget);
+        if (target!=null && target!=0) {
+            // Only disconnect from specific target.
+            local oldTarget = GetPossessedTarget();
+            if (target!=oldTarget)
+                return;
+        }
+        ClearData("IsPossessing");
+        Detach(target);
+        SendMessage(target, "NowDispossessed");
     }
 
     function GetPossessedTarget() {
@@ -215,6 +232,12 @@ class Possessor extends SqRootScript {
         Link.Destroy(Link.GetOne("PhysAttach", self, anchor));
         Link.Destroy(Link.GetOne("Population", anchor, target));
         Property.Set(anchor, "MovingTerrain", "Active", false);
+    }
+
+    function UpdateAttachPosition() {
+        local target = GetPossessedTarget();
+        local pos = Object.Position(target); // TODO: pointer pos + camera offset
+        SetAnchorPosition(pos);
     }
 
     function SetAnchorPosition(posWorldSpace) {
@@ -346,7 +369,11 @@ class Foo {
     function NeedsUpdateAttach() { return false; }
 }
 
-class PossessableImmobile {
+class Possessable extends SqRootScript {
+    // function OnNowPossessed() {
+    // }
+
+    /*
     function Attach(player, attachOffset, attachFacing) {
         // We create a MovingTerrain that the player will be attached to, along
         // with points for a minimal path.
@@ -428,12 +455,18 @@ class PossessableImmobile {
         Object.EndCreate(o);
         return o;
     }
+*/
 }
 
-class PossessableMobile {
+class PossessableMobile extends SqRootScript {
+    function OnNowPossessed() {
+        Reply("Mobile");
+    }
+/*
     function Attach(player, attachOffset, attachFacing) { return false; }
     function Detach(player) {}
     function NeedsUpdateAttach() { return true; }
+*/
 }
 
 
@@ -442,7 +475,7 @@ class PossessPoint extends SqRootScript {
 }
 
 // TODO: obsolete
-class PossessMe extends SqRootScript {
+class OldPossessMe extends SqRootScript {
     function ParseVector(s) {
         local v = vector();
         local at = 0;
@@ -1428,7 +1461,7 @@ class OldPossessor extends SqRootScript {
     }
 }
 
-class PossessMouselookFix extends SqRootScript {
+class OldPossessMouselookFix extends SqRootScript {
     function IsDoor(obj) {
         return (Property.Possessed(obj,"RotDoor")
             || Property.Possessed(obj,"TransDoor"));
