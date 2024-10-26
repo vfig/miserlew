@@ -174,6 +174,36 @@ class Possessor extends SqRootScript {
         return LinkDest(link);
     }
 
+    function FindPossessPoint(target) {
+        foreach (link in Link.GetAll("~DetailAttachement", target)) {
+            if (Object.InheritsFrom(LinkDest(link), "PossessPoint")) {
+                return LinkDest(link);
+            }
+        }
+        return 0;
+    }
+
+    function AttachOffset(target) {
+        // TODO: eye offset of player.
+        local eyeOffset = vector(3,0,0);
+        local pointer = FindPossessPoint(target);
+        return CalcAttachOffset(target, pointer, eyeOffset)
+    }
+
+    function CalcAttachOffset(target, pointer, eyeOffset) {
+        // PhysAttach offset is always relative to the attached object but in
+        // global orientation; eyeOffset is interpreted as local to the
+        // attached object.
+        local relTo = (pointer!=0)? pointer : target;
+        return Object.ObjectToWorld(relTo, eyeOffset)-Object.Position(target);
+    }
+
+    function CalcAttachFacing(target, pointer) {
+        if (pointer==0)
+            return Object.Facing(target);
+        return Object.Facing(pointer);
+    }
+
     function DoPossess(target) {
         local oldTarget = GetPossessedTarget();
         if (target==oldTarget)
@@ -182,8 +212,11 @@ class Possessor extends SqRootScript {
         if (oldTarget!=0) {
             Detach(oldTarget);
         }
-        Attach(target);
+
+        Attach(target, AttachOffset(target));
         // TODO: update facing if needed?
+        //local facing = CalcAttachFacing(target, pointer);
+
         local reply = SendMessage(target, "NowPossessed");
         if (reply=="Mobile") {
             // Update attachment position every frame for a mobile possessable.
@@ -213,7 +246,7 @@ class Possessor extends SqRootScript {
         return LinkDest(link);
     }
 
-    function Attach(target) {
+    function Attach(target, offset) {
         local pos = Object.Position(target); // TODO: pointer pos + camera offset
         SetAnchorPosition(pos);
         local anchor = GetPossessAnchor();
@@ -223,7 +256,8 @@ class Possessor extends SqRootScript {
         //       leaning-backward thing; and will also fly right through
         //       solid terrain, which is perhaps undesirable.
         Object.Teleport(self, vector(), vector(), anchor);
-        Link.Create("PhysAttach", self, anchor);
+        local link = Link.Create("PhysAttach", self, anchor);
+        LinkTools.LinkSetData(link, "Offset", offset);
         Link.Create("Population", anchor, target);
     }
 
@@ -238,6 +272,9 @@ class Possessor extends SqRootScript {
         local target = GetPossessedTarget();
         local pos = Object.Position(target); // TODO: pointer pos + camera offset
         SetAnchorPosition(pos);
+        local link = Link.GetOne("PhysAttach", self);
+        if (link!=0)
+            LinkTools.LinkSetData(link, "Offset", AttachOffset(target));
     }
 
     function SetAnchorPosition(posWorldSpace) {
@@ -469,9 +506,24 @@ class PossessableMobile extends SqRootScript {
 */
 }
 
-
 class PossessPoint extends SqRootScript {
     // TODO: detect a possession spell stim.
+
+    function OnTurnOn() {
+        local player = Object.Named("Player");
+        local link = Link.GetOne("DetailAttachement", self);
+        if (link==0)
+            return;
+        SendMessage(player, "Possess", LinkDest(link));
+    }
+
+    function OnTurnOff() {
+        local player = Object.Named("Player");
+        local link = Link.GetOne("DetailAttachement", self);
+        if (link==0)
+            return;
+        SendMessage(player, "Dispossess", LinkDest(link));
+    }
 }
 
 // TODO: obsolete
