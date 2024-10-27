@@ -184,18 +184,40 @@ class Possessor extends SqRootScript {
     }
 
     function AttachOffset(target) {
-        // TODO: eye offset of player.
-        local eyeOffset = vector(3,0,0);
+        // Get the player's head and body position relative to their origin.
+        // Headbob and lean will affect this a little, but we are ignoring that.
+        // The main thing is to properly handle standing vs crouched difference.
+        // NOTE: CalcRelTransform() returns the position of the child object
+        //       relative to the given submodel of the parent object; but we
+        //       want the submodel position relative to the parent origin,
+        //       which is the inverse; hence the negations.
+        local submodelOffset = vector();
+        local ignoreFacing = vector();
+        Object.CalcRelTransform(self, self, submodelOffset, ignoreFacing, 4, 0); // 4=RelSubPhysModel, 0=PLAYER_HEAD
+        local isCrouched = (-submodelOffset.z<=0);
+        // We don't want the actual head position though, as if that is off the
+        // default when we measure (due to headbob/lean) then the camera will
+        // drift off our ideal attach point as the spring relaxes. So here we
+        // hardcode the normal/crouch head offsets (from PHYSAPI.H, PHMODATA.C):
+        local playerHeadZ = isCrouched? -0.22 : 1.8;
+        // The camera position is not at the center of the player's head
+        // submodel, but 0.8 units higher ("eyeloc").
+        local eyeZ = playerHeadZ+0.8;
+        // BUG: when we attach to the guard now, our camera is almost in the
+        //      floor, _way_ lower than the guard's origin i think? (but the
+        //      guard doesn't have a pointer, so maybe not actually a bug?)
         local pointer = FindPossessPoint(target);
-        return CalcAttachOffset(target, pointer, eyeOffset)
+        return CalcAttachOffset(target, pointer, eyeZ)
     }
 
-    function CalcAttachOffset(target, pointer, eyeOffset) {
+    function CalcAttachOffset(target, pointer, eyeZ) {
         // PhysAttach offset is always relative to the attached object but in
-        // global orientation; eyeOffset is interpreted as local to the
-        // attached object.
+        // global orientation.
+        // BUG: is that true though? cause when we attach to the door, we are
+        //       way off to the side (but still at the right height)
+        local eyeOffset = vector(1,0,-eyeZ);
         local relTo = (pointer!=0)? pointer : target;
-        return Object.ObjectToWorld(relTo, eyeOffset)-Object.Position(target);
+        return Object.Position(relTo)+eyeOffset-Object.Position(target);
     }
 
     function CalcAttachFacing(target, pointer) {
