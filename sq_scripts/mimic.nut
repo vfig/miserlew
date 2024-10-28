@@ -573,8 +573,16 @@ class PossessCaster extends SqRootScript {
         SendMessage("Player", "FrobLeftEnd");
     }
 
+    function OnInvSelect() {
+        print(GetTime()+": "+Object.GetName(self)+" ("+self+"): "+message().message);
+        //Weapon.Equip(self);
+        PlayerLimbs.Equip(self);
+    }
+
     function OnInvDeSelect() {
         print(GetTime()+": "+Object.GetName(self)+" ("+self+"): "+message().message);
+        //Weapon.UnEquip(self);
+        PlayerLimbs.UnEquip(self);
         // Prevent from being deselected in inventory.
         // NOTE: neither DarkUI.InvSelect(self) nor the inv_select command works
         //       to prevent the weapon from being deselected! So we post a
@@ -583,7 +591,8 @@ class PossessCaster extends SqRootScript {
     }
 
     function OnForceReselect() {
-        DarkUI.InvSelect(self);
+// TEMP: disable for testing
+//        DarkUI.InvSelect(self);
     }
 
 /* TODO: restore or delete this idc
