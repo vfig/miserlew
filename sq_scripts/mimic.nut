@@ -548,6 +548,52 @@ class PossessPoint extends SqRootScript {
     }
 }
 
+class PossessCaster extends SqRootScript {
+    function OnContained() {
+        // Make sure we are selected immediately.
+        if (message().event==eContainsEvent.kContainAdd) {
+            DarkUI.InvSelect(self);
+        }
+    }
+
+    function OnFrobInvBegin() {
+        // Player left-clicked while possessed.
+        print(GetTime()+": "+Object.GetName(self)+" ("+self+"): "+message().message);
+        local player = Object.Named("Player");
+        if (message().Abort) {
+            SendMessage("Player", "FrobLeftAbort");
+        } else {
+            SendMessage("Player", "FrobLeftBegin");
+        }
+    }
+
+    function OnFrobInvEnd() {
+        print(GetTime()+": "+Object.GetName(self)+" ("+self+"): "+message().message);
+        local player = Object.Named("Player");
+        SendMessage("Player", "FrobLeftEnd");
+    }
+
+    function OnInvDeSelect() {
+        print(GetTime()+": "+Object.GetName(self)+" ("+self+"): "+message().message);
+        // Prevent from being deselected in inventory.
+        // NOTE: neither DarkUI.InvSelect(self) nor the inv_select command works
+        //       to prevent the weapon from being deselected! So we post a
+        //       message to force a reselection next frame.
+        PostMessage(self, "ForceReselect");
+    }
+
+    function OnForceReselect() {
+        DarkUI.InvSelect(self);
+    }
+
+/* TODO: restore or delete this idc
+    function OnMessage() {
+        // TEMP: print all other messages we might need to handle.
+        print(GetTime()+": "+Object.GetName(self)+" ("+self+"): "+message().message);
+    }
+*/
+}
+
 // TODO: obsolete
 class OldPossessMe extends SqRootScript {
     function ParseVector(s) {
