@@ -91,9 +91,6 @@ class TrapPossess extends SqRootScript {
     }
 }
 
-// BUG: somehow i have broken the possession now, and get killed when
-//      possessing the guard???
-
 class Possessor extends SqRootScript {
     // Possess: sent from anything, asks to begin possessing the 'data' object.
     function OnPossess() {
@@ -206,9 +203,6 @@ class Possessor extends SqRootScript {
         // The camera position is not at the center of the player's head
         // submodel, but 0.8 units higher ("eyeloc").
         local eyeZ = playerHeadZ+0.8;
-        // BUG: when we attach to the guard now, our camera is almost in the
-        //      floor, _way_ lower than the guard's origin i think? (but the
-        //      guard doesn't have a pointer, so maybe not actually a bug?)
         local pointer = FindPossessPoint(target);
         return CalcAttachOffset(target, pointer, eyeZ)
     }
@@ -216,9 +210,14 @@ class Possessor extends SqRootScript {
     function CalcAttachOffset(target, pointer, eyeZ) {
         // PhysAttach offset is always relative to the attached object but in
         // global orientation.
-        // BUG: is that true though? cause when we attach to the door, we are
-        //       way off to the side (but still at the right height)
-        local eyeOffset = vector(1,0,-eyeZ);
+        local eyeOffset = vector(0,0,-eyeZ);
+        // BUG: when we attach to the guard now, our camera is almost in the
+        //      floor, _way_ lower than the guard's origin i think? (but the
+        //      guard doesn't have a pointer, so maybe not actually a bug?)
+        // BUG: somehow i have broken the possession now, and get killed when
+        //      possessing the guard???
+        // BUG: both of the above are related; when there is no pointer, the
+        //      calculation below ends up wrong.
         local relTo = (pointer!=0)? pointer : target;
         return Object.Position(relTo)+eyeOffset-Object.Position(target);
     }
