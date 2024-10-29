@@ -91,6 +91,9 @@ class TrapPossess extends SqRootScript {
     }
 }
 
+// BUG: somehow i have broken the possession now, and get killed when
+//      possessing the guard???
+
 class Possessor extends SqRootScript {
     // Possess: sent from anything, asks to begin possessing the 'data' object.
     function OnPossess() {
@@ -663,31 +666,33 @@ class PossessCaster extends SqRootScript {
         local link = Link.Create("DetailAttachement", viewmodel, arm);
         LinkTools.LinkSetData(link, "Type", 2); // Joint
         LinkTools.LinkSetData(link, "joint", 1);
-        LinkTools.LinkSetData(link, "rel pos", vector(-1,0,0));
+        LinkTools.LinkSetData(link, "rel pos", vector(0,0,0));
         LinkTools.LinkSetData(link, "rel rot", vector());
+        //LinkTools.LinkSetData(link, "Flags", 2); // No Joint Rot - means it stays world-oriented.
         link = Link.Create("ScriptParams", self, viewmodel);
         LinkTools.LinkSetData(link, "", "PossessVM");
 
-        // // okay, create two more for blender's sake
-        // local v = Object.BeginCreate(arch);
-        // Property.SetSimple(v, "Transient", true);
-        // Object.Teleport(v, vector(), vector());
-        // Object.EndCreate(v);
-        // local link = Link.Create("DetailAttachement", v, arm);
-        // LinkTools.LinkSetData(link, "Type", 2); // Joint
-        // LinkTools.LinkSetData(link, "joint", 1);
-        // LinkTools.LinkSetData(link, "rel pos", vector(-3,0,1));
-        // LinkTools.LinkSetData(link, "rel rot", vector());
-
-        // local v = Object.BeginCreate(arch);
-        // Property.SetSimple(v, "Transient", true);
-        // Object.Teleport(v, vector(), vector());
-        // Object.EndCreate(v);
-        // local link = Link.Create("DetailAttachement", v, arm);
-        // LinkTools.LinkSetData(link, "Type", 2); // Joint
-        // LinkTools.LinkSetData(link, "joint", 1);
-        // LinkTools.LinkSetData(link, "rel pos", vector(-2,-1,-1));
-        // LinkTools.LinkSetData(link, "rel rot", vector());
+        // okay, create two more for blender's sake
+        local spawnCube = function(pos, atJoint) {
+            local v = Object.BeginCreate(arch);
+            Property.SetSimple(v, "Transient", true);
+            Object.Teleport(v, vector(), vector());
+            Object.EndCreate(v);
+            local link = Link.Create("DetailAttachement", v, arm);
+            if (atJoint) {
+                LinkTools.LinkSetData(link, "Type", 2); // Joint
+                LinkTools.LinkSetData(link, "joint", 1);
+            } else {
+                LinkTools.LinkSetData(link, "Type", 0); // Object
+            }
+            LinkTools.LinkSetData(link, "rel pos", pos);
+            LinkTools.LinkSetData(link, "rel rot", vector());
+        }
+        spawnCube(vector(0.0,0.0,0.0), false);
+        spawnCube(vector(-0.5,0.0,0.0), true);
+        spawnCube(vector(-1.0,0.0,0.0), true);
+        spawnCube(vector(-1.5,0.0,0.0), true);
+        spawnCube(vector(-2.0,0.0,0.0), true);
 
         return viewmodel;
     }
