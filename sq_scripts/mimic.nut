@@ -286,10 +286,18 @@ class Possessor extends SqRootScript {
         //       the attach position, with their camera doing the whole
         //       leaning-backward thing; and will also fly right through
         //       solid terrain, which is perhaps undesirable.
+        // NOTE: The fly-to-target is very cool, but only works sometimes;
+        //       e.g. when possessing the door, we just sit where we were until
+        //       we try to crouch, and only then fly in. So, if we want the
+        //       fly-in, we should probably do it manually with a projectile.
         Object.Teleport(self, vector(), vector(), anchor);
         local link = Link.Create("PhysAttach", self, anchor);
         LinkTools.LinkSetData(link, "Offset", offset);
         Link.Create("Population", anchor, target);
+        // Clear the player's collision response so they won't impact doors, AIs, etc.
+        local collisionType = GetProperty("CollisionType");
+        SetData("PlayerCollisionType", collisionType);
+        SetProperty("CollisionType", 0);
     }
 
     function Detach(target) {
@@ -297,6 +305,9 @@ class Possessor extends SqRootScript {
         Link.Destroy(Link.GetOne("PhysAttach", self, anchor));
         Link.Destroy(Link.GetOne("Population", anchor, target));
         Property.Set(anchor, "MovingTerrain", "Active", false);
+        // Restore the player's collision response.
+        local collisionType = GetData("PlayerCollisionType");
+        SetProperty("CollisionType", collisionType);
     }
 
     function UpdateAttachPosition() {
