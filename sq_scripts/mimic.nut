@@ -550,9 +550,12 @@ class PossessPoint extends SqRootScript {
 
 class PossessCaster extends SqRootScript {
     function OnContained() {
-        // Make sure we are selected immediately.
         if (message().event==eContainsEvent.kContainAdd) {
+            // Create
+            // Make sure we are selected immediately.
             DarkUI.InvSelect(self);
+        } else if (message().event==eContainsEvent.kContainRemove) {
+
         }
     }
 
@@ -575,25 +578,120 @@ class PossessCaster extends SqRootScript {
 
     function OnInvSelect() {
         print(GetTime()+": "+Object.GetName(self)+" ("+self+"): "+message().message);
-        //Weapon.Equip(self);
+        // BUG: using PlayerLimbs.Equip() seems to always apply the "carrying body"
+        //      lowered head position. (but do we care?)
         PlayerLimbs.Equip(self);
+        AttachViewmodel();
     }
 
     function OnInvDeSelect() {
         print(GetTime()+": "+Object.GetName(self)+" ("+self+"): "+message().message);
-        //Weapon.UnEquip(self);
+        DetachViewmodel();
         PlayerLimbs.UnEquip(self);
+        //DetachViewmodel();
         // Prevent from being deselected in inventory.
         // NOTE: neither DarkUI.InvSelect(self) nor the inv_select command works
         //       to prevent the weapon from being deselected! So we post a
         //       message to force a reselection next frame.
-        PostMessage(self, "ForceReselect");
+// TEMP: disable for testing
+//        PostMessage(self, "ForceReselect");
     }
 
     function OnForceReselect() {
-// TEMP: disable for testing
-//        DarkUI.InvSelect(self);
+        DarkUI.InvSelect(self);
     }
+
+    function OnTryAttach() {
+        // BUG: if we cycle from sword to our weapon quickly, the PlyrArm
+        //      exists already on try 0, but we then _dont_ successfully spawn
+        //      the viewmodel, or something? investigate.
+        if (IsDataSet("AttachTry")) {
+            local attempt = GetData("AttachTry");
+            if (attempt<60) {
+                local arm = Object.Named("PlyrArm");
+                print("Try "+attempt+" PlyrArm:"+arm+" named:"+(arm==0? "" : Object.GetName(arm)));
+                if (arm==0) {
+                    SetData("AttachTry", attempt+1);
+                    PostMessage(self, "TryAttach");
+                } else {
+                    ClearData("AttachTry");
+                    SpawnViewmodel(arm);
+                }
+            } else {
+                ClearData("AttachTry");
+            }
+        }
+    }
+
+    function AttachViewmodel() {
+        if (GetViewmodel()==0) {
+            if (! IsDataSet("AttachTry")) {
+                // PlyrArm is not immediately available, so try each frame to find it.
+                SetData("AttachTry", 0);
+                OnTryAttach();
+            }
+        }
+    }
+
+    function DetachViewmodel() {
+        // The PlyrArm is destroyed, so detail-attached objects will be
+        // destroyed with it. So just make sure we abort finding the PlyrArm
+        // if we have not yet found it.
+        ClearData("AttachTry");
+    }
+
+    function GetViewmodel() {
+        foreach (link in Link.GetAll("ScriptParams", self)) {
+            if (LinkTools.LinkGetData(link, "")=="PossessVM") {
+                return LinkDest(link);
+            }
+        }
+        return 0;
+    }
+
+    function SpawnViewmodel(arm) {
+        local archName = "PossessCasterVM";
+        local arch = Object.Named(archName);
+        if (arch==0) {
+            print("ERROR: no archetype named '"+archName+"'");
+            return 0;
+        }
+        local viewmodel = Object.BeginCreate(arch);
+        Property.SetSimple(viewmodel, "Transient", true);
+        Object.Teleport(viewmodel, vector(), vector());
+        Object.EndCreate(viewmodel);
+        local link = Link.Create("DetailAttachement", viewmodel, arm);
+        LinkTools.LinkSetData(link, "Type", 2); // Joint
+        LinkTools.LinkSetData(link, "joint", 1);
+        LinkTools.LinkSetData(link, "rel pos", vector(-1,0,0));
+        LinkTools.LinkSetData(link, "rel rot", vector());
+        link = Link.Create("ScriptParams", self, viewmodel);
+        LinkTools.LinkSetData(link, "", "PossessVM");
+
+        // // okay, create two more for blender's sake
+        // local v = Object.BeginCreate(arch);
+        // Property.SetSimple(v, "Transient", true);
+        // Object.Teleport(v, vector(), vector());
+        // Object.EndCreate(v);
+        // local link = Link.Create("DetailAttachement", v, arm);
+        // LinkTools.LinkSetData(link, "Type", 2); // Joint
+        // LinkTools.LinkSetData(link, "joint", 1);
+        // LinkTools.LinkSetData(link, "rel pos", vector(-3,0,1));
+        // LinkTools.LinkSetData(link, "rel rot", vector());
+
+        // local v = Object.BeginCreate(arch);
+        // Property.SetSimple(v, "Transient", true);
+        // Object.Teleport(v, vector(), vector());
+        // Object.EndCreate(v);
+        // local link = Link.Create("DetailAttachement", v, arm);
+        // LinkTools.LinkSetData(link, "Type", 2); // Joint
+        // LinkTools.LinkSetData(link, "joint", 1);
+        // LinkTools.LinkSetData(link, "rel pos", vector(-2,-1,-1));
+        // LinkTools.LinkSetData(link, "rel rot", vector());
+
+        return viewmodel;
+    }
+
 
 /* TODO: restore or delete this idc
     function OnMessage() {
@@ -601,6 +699,68 @@ class PossessCaster extends SqRootScript {
         print(GetTime()+": "+Object.GetName(self)+" ("+self+"): "+message().message);
     }
 */
+
+/*
+    function GetViewmodel() {
+
+        return 0;
+        local link = Link.GetOne("Owns", self);
+        if (link!=0)
+            return LinkDest(link);
+        local o = Object.BeginCreate("PossessViewmodel");
+        Object.Teleport(o, vector(), vector());
+        Object.EndCreate(o);
+        Link.Create("Owns", self, o);
+        return o;
+    }
+
+    function AttachViewmodel() {
+        return;
+        local player = Object.Named("Player");
+        local arm = object("PlyrArm").tointeger();
+        if (arm==0) {
+            print("Cannot find player arm");
+            return;
+        } else {
+            print("PlayerArm:"+o+" named:"+Object.GetName(o));
+        }
+
+        local o = GetViewmodel();
+        local link = Link.GetOne("DetailAttachement", o, arm);
+        if (link==0)
+            link = Link.Create("DetailAttachement", o, arm);
+        // print("Type:"+Property.Get(player, "PhysType", "Type"));
+        // print("Submodels:"+Property.Get(player, "PhysType", "# Submodels"));
+        // local pos = vector();
+        // local facing = vector();
+        // Object.CalcRelTransform(player, player, pos, facing, 4, 0); // 4=RelSubPhysModel, 0=PLAYER_HEAD
+
+        //LinkTools.LinkSetData(link, "Type", 3); // Submodel
+        //LinkTools.LinkSetData(link, "vhot/sub #", 0); // Head
+        LinkTools.LinkSetData(link, "rel pos", vector(2,0,0));
+        LinkTools.LinkSetData(link, "rel rot", vector());
+        LinkTools.LinkSetData(link, "Flags", 1); // No Auto-Delete
+    }
+
+    function DetachViewmodel() {
+        return 0;
+        local player = Object.Named("Player");
+        local o = GetViewmodel();
+        local link = Link.GetOne("DetailAttachement", o, player);
+        if (link!=0) {
+            LinkTools.LinkSetData(link, "Flags", 1); // No Auto-Delete
+            Link.Destroy(link);
+        }
+        Object.Teleport(o, vector(), vector());
+    }
+*/
+}
+
+class PossessViewmodel extends SqRootScript {
+    function OnMessage() {
+        // TEMP: print all other messages we might need to handle.
+        print("PossessViewmodel - "+GetTime()+": "+Object.GetName(self)+" ("+self+"): "+message().message);
+    }
 }
 
 // TODO: obsolete
