@@ -95,8 +95,8 @@ class Possessor extends SqRootScript {
     // Possess: sent from anything, asks to begin possessing the 'data' object.
     function OnPossess() {
         print(self+": "+message().message+" from:"+message().from+" data:"+message().data);
-        local from = message().data.tointeger();
-        DoPossess(from);
+        local target = message().data.tointeger();
+        DoPossess(target);
     }
 
     // Dispossess: sent from anything, asks to stop possessing the 'data' object.
@@ -203,6 +203,7 @@ class Possessor extends SqRootScript {
         // The camera position is not at the center of the player's head
         // submodel, but 0.8 units higher ("eyeloc").
         local eyeZ = playerHeadZ+0.8;
+        print("isCrouched:"+isCrouched+" playerHeadZ:"+playerHeadZ+" eyeZ:"+eyeZ);
         local pointer = FindPossessPoint(target);
         return CalcAttachOffset(target, pointer, eyeZ)
     }
@@ -210,6 +211,8 @@ class Possessor extends SqRootScript {
     function CalcAttachOffset(target, pointer, eyeZ) {
         // PhysAttach offset is always relative to the attached object but in
         // global orientation.
+        // BUG: we now seem to be attaching too low? is that due to playerHeadZ
+        //      being wrong, or eyeZ being wrong, or what?
         local eyeOffset = vector(0,0,-eyeZ);
         // BUG: when we attach to the guard now, our camera is almost in the
         //      floor, _way_ lower than the guard's origin i think? (but the
@@ -232,11 +235,15 @@ class Possessor extends SqRootScript {
         local oldTarget = GetPossessedTarget();
         if (target==oldTarget)
             return;
-        SetData("IsPossessing", 1);
         if (oldTarget!=0) {
+            ClearData("IsPossessing");
             Detach(oldTarget);
+            // PhysAttach links don't like being destroyed and recreated in
+            // the same frame. So try again next frame.
+            PostMessage(self, "Possess", target);
+            return;
         }
-
+        SetData("IsPossessing", 1);
         Attach(target, AttachOffset(target));
         // TODO: update facing if needed?
         //local facing = CalcAttachFacing(target, pointer);
@@ -431,6 +438,13 @@ class Foo {
 }
 
 class Possessable extends SqRootScript {
+    function OnPossessStimStimulus() {
+        if (message().intensity>0) {
+            local player = Object.Named("Player");
+            SendMessage(player, "Possess", self);
+        }
+    }
+
     // function OnNowPossessed() {
     // }
 
@@ -576,6 +590,9 @@ class PossessCaster extends SqRootScript {
         print(GetTime()+": "+Object.GetName(self)+" ("+self+"): "+message().message);
         local player = Object.Named("Player");
         SendMessage("Player", "FrobLeftEnd");
+
+        // TODO: dont allow spamming this
+        CastSpell();
     }
 
     function OnInvSelect() {
@@ -590,7 +607,6 @@ class PossessCaster extends SqRootScript {
         print(GetTime()+": "+Object.GetName(self)+" ("+self+"): "+message().message);
         DetachViewmodel();
         PlayerLimbs.UnEquip(self);
-        //DetachViewmodel();
         // Prevent from being deselected in inventory.
         // NOTE: neither DarkUI.InvSelect(self) nor the inv_select command works
         //       to prevent the weapon from being deselected! So we post a
@@ -662,38 +678,48 @@ class PossessCaster extends SqRootScript {
         Property.SetSimple(viewmodel, "Transient", true);
         Object.Teleport(viewmodel, vector(), vector());
         Object.EndCreate(viewmodel);
+        // Position and rotation found empirically:
         local link = Link.Create("DetailAttachement", viewmodel, arm);
         LinkTools.LinkSetData(link, "Type", 2); // Joint
         LinkTools.LinkSetData(link, "joint", 1);
-        LinkTools.LinkSetData(link, "rel pos", vector(0,0,0));
-        LinkTools.LinkSetData(link, "rel rot", vector());
-        //LinkTools.LinkSetData(link, "Flags", 2); // No Joint Rot - means it stays world-oriented.
+        LinkTools.LinkSetData(link, "rel pos", vector(0,-0.5,-0.5));
+        LinkTools.LinkSetData(link, "rel rot", vector(0,2,144));
         link = Link.Create("ScriptParams", self, viewmodel);
         LinkTools.LinkSetData(link, "", "PossessVM");
 
-        // okay, create two more for blender's sake
-        local spawnCube = function(pos, atJoint) {
-            local v = Object.BeginCreate(arch);
-            Property.SetSimple(v, "Transient", true);
-            Object.Teleport(v, vector(), vector());
-            Object.EndCreate(v);
-            local link = Link.Create("DetailAttachement", v, arm);
-            if (atJoint) {
-                LinkTools.LinkSetData(link, "Type", 2); // Joint
-                LinkTools.LinkSetData(link, "joint", 1);
-            } else {
-                LinkTools.LinkSetData(link, "Type", 0); // Object
+        if(0) {
+            // okay, create two more for blender's sake
+            local spawnCube = function(pos, atJoint) {
+                local v = Object.BeginCreate(arch);
+                Property.SetSimple(v, "Transient", true);
+                Object.Teleport(v, vector(), vector());
+                Object.EndCreate(v);
+                local link = Link.Create("DetailAttachement", v, arm);
+                if (atJoint) {
+                    LinkTools.LinkSetData(link, "Type", 2); // Joint
+                    LinkTools.LinkSetData(link, "joint", 1);
+                } else {
+                    LinkTools.LinkSetData(link, "Type", 0); // Object
+                }
+                LinkTools.LinkSetData(link, "rel pos", pos);
+                LinkTools.LinkSetData(link, "rel rot", vector());
             }
-            LinkTools.LinkSetData(link, "rel pos", pos);
-            LinkTools.LinkSetData(link, "rel rot", vector());
+            spawnCube(vector(0.0,0.0,0.0), false);
+            spawnCube(vector(-0.5,0.0,0.0), true);
+            spawnCube(vector(-1.0,0.0,0.0), true);
+            spawnCube(vector(-1.5,0.0,0.0), true);
+            spawnCube(vector(-2.0,0.0,0.0), true);
         }
-        spawnCube(vector(0.0,0.0,0.0), false);
-        spawnCube(vector(-0.5,0.0,0.0), true);
-        spawnCube(vector(-1.0,0.0,0.0), true);
-        spawnCube(vector(-1.5,0.0,0.0), true);
-        spawnCube(vector(-2.0,0.0,0.0), true);
-
         return viewmodel;
+    }
+
+    function CastSpell() {
+        local viewmodel = GetViewmodel();
+        if (viewmodel==0) {
+            print("WARNING: tried to cast spell when there is no viewmodel.");
+            return;
+        }
+        Physics.LaunchProjectile(viewmodel, "PossessSpell", 1.0, 2|8, vector()); // PRJ_FLG_PUSHOUT|PRJ_FLG_GRAVITY
     }
 
 
@@ -701,61 +727,6 @@ class PossessCaster extends SqRootScript {
     function OnMessage() {
         // TEMP: print all other messages we might need to handle.
         print(GetTime()+": "+Object.GetName(self)+" ("+self+"): "+message().message);
-    }
-*/
-
-/*
-    function GetViewmodel() {
-
-        return 0;
-        local link = Link.GetOne("Owns", self);
-        if (link!=0)
-            return LinkDest(link);
-        local o = Object.BeginCreate("PossessViewmodel");
-        Object.Teleport(o, vector(), vector());
-        Object.EndCreate(o);
-        Link.Create("Owns", self, o);
-        return o;
-    }
-
-    function AttachViewmodel() {
-        return;
-        local player = Object.Named("Player");
-        local arm = object("PlyrArm").tointeger();
-        if (arm==0) {
-            print("Cannot find player arm");
-            return;
-        } else {
-            print("PlayerArm:"+o+" named:"+Object.GetName(o));
-        }
-
-        local o = GetViewmodel();
-        local link = Link.GetOne("DetailAttachement", o, arm);
-        if (link==0)
-            link = Link.Create("DetailAttachement", o, arm);
-        // print("Type:"+Property.Get(player, "PhysType", "Type"));
-        // print("Submodels:"+Property.Get(player, "PhysType", "# Submodels"));
-        // local pos = vector();
-        // local facing = vector();
-        // Object.CalcRelTransform(player, player, pos, facing, 4, 0); // 4=RelSubPhysModel, 0=PLAYER_HEAD
-
-        //LinkTools.LinkSetData(link, "Type", 3); // Submodel
-        //LinkTools.LinkSetData(link, "vhot/sub #", 0); // Head
-        LinkTools.LinkSetData(link, "rel pos", vector(2,0,0));
-        LinkTools.LinkSetData(link, "rel rot", vector());
-        LinkTools.LinkSetData(link, "Flags", 1); // No Auto-Delete
-    }
-
-    function DetachViewmodel() {
-        return 0;
-        local player = Object.Named("Player");
-        local o = GetViewmodel();
-        local link = Link.GetOne("DetailAttachement", o, player);
-        if (link!=0) {
-            LinkTools.LinkSetData(link, "Flags", 1); // No Auto-Delete
-            Link.Destroy(link);
-        }
-        Object.Teleport(o, vector(), vector());
     }
 */
 }
