@@ -197,6 +197,9 @@ class Possessor extends SqRootScript {
         local ignoreFacing = vector();
         Object.CalcRelTransform(self, self, submodelOffset, ignoreFacing, 4, 0); // 4=RelSubPhysModel, 0=PLAYER_HEAD
         local isCrouched = (-submodelOffset.z<=0);
+
+        // TODO: use Camera.GetPosition(), Camera.GetFacing() ??
+
         // We don't want the actual head position though, as if that is off the
         // default when we measure (due to headbob/lean) then the camera will
         // drift off our ideal attach point as the spring relaxes. So here we
@@ -205,7 +208,8 @@ class Possessor extends SqRootScript {
         // The camera position is not at the center of the player's head
         // submodel, but 0.8 units higher ("eyeloc").
         local eyeZ = playerHeadZ+0.8;
-        print("isCrouched:"+isCrouched+" playerHeadZ:"+playerHeadZ+" eyeZ:"+eyeZ);
+// TODO: for debugging positioning
+//        print("isCrouched:"+isCrouched+" playerHeadZ:"+playerHeadZ+" eyeZ:"+eyeZ);
         local pointer = FindPossessPoint(target);
         return CalcAttachOffset(target, pointer, eyeZ)
     }
@@ -294,7 +298,12 @@ class Possessor extends SqRootScript {
         //       e.g. when possessing the door, we just sit where we were until
         //       we try to crouch, and only then fly in. So, if we want the
         //       fly-in, we should probably do it manually with a projectile.
-        Object.Teleport(self, vector(), vector(), anchor);
+        local pointer = FindPossessPoint(target);
+        local facing = Object.Facing((pointer!=0)? pointer : target);
+        print("facing:" +facing);
+        facing.x = 90;
+        print("facing:" +facing);
+        Object.Teleport(self, vector(), facing, anchor);
         local link = Link.Create("PhysAttach", self, anchor);
         LinkTools.LinkSetData(link, "Offset", offset);
         Link.Create("Population", anchor, target);
@@ -327,7 +336,7 @@ class Possessor extends SqRootScript {
         local anchor = GetPossessAnchor();
         local terrpt1 = GetTerrPt1(anchor);
         local terrpt2 = GetTerrPt2(terrpt1);
-        Object.Teleport(anchor, posWorldSpace, vector());
+        Object.Teleport(anchor, posWorldSpace, vector(45,0,0));
         Object.Teleport(terrpt1, vector(), vector(), anchor);
         Object.Teleport(terrpt2, vector(0,0,4), vector(), anchor);
     }
@@ -723,8 +732,8 @@ class PossessCaster extends SqRootScript {
         local link = Link.Create("DetailAttachement", viewmodel, arm);
         LinkTools.LinkSetData(link, "Type", 2); // Joint
         LinkTools.LinkSetData(link, "joint", 1);
-        LinkTools.LinkSetData(link, "rel pos", vector(0,-0.5,-0.5));
-        LinkTools.LinkSetData(link, "rel rot", vector(0,2,144));
+        LinkTools.LinkSetData(link, "rel pos", vector(-0.2,-0.2,-0.5));
+        LinkTools.LinkSetData(link, "rel rot", vector(0,0,149));
         link = Link.Create("ScriptParams", self, viewmodel);
         LinkTools.LinkSetData(link, "", "PossessVM");
 
