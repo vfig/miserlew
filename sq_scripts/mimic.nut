@@ -1,3 +1,5 @@
+// TODO: clean up all the obsolete shit!!!
+
 /* EMBODIMENT TYPES:
 
 Camera.StaticAttach
@@ -248,6 +250,8 @@ class Possessor extends SqRootScript {
         // TODO: update facing if needed?
         //local facing = CalcAttachFacing(target, pointer);
 
+        TriggerFlash("PossessFlash");
+
         local reply = SendMessage(target, "NowPossessed");
         if (reply=="Mobile") {
             // Update attachment position every frame for a mobile possessable.
@@ -328,7 +332,34 @@ class Possessor extends SqRootScript {
         Object.Teleport(terrpt2, vector(0,0,4), vector(), anchor);
     }
 
-    //............ ugh so much to rewrite i am losing track of it all :(
+    function TriggerFlash(flashArch) {
+        // NOTE: Using DrkPowerups.TriggerWorldFlash() is fraught because it
+        //       requires the player to be looking at a thing for them to
+        //       see it. Instead we use the same technique here as in
+        //       tnhScript's TrapRenderFlash, leaning on the player-only
+        //       flash when the camera is attached to something, and immediately
+        //       returning the camera again. Note that this looks for a
+        //       RenderFlash link from the archetype, not the object itself;
+        //       so we have to swizzle the links around if there is one there
+        //       already (e.g. the T2 default for CamGrenades).
+        //       As noted in tnhScript, this has the side effect of deselecting
+        //       any weapon the player is holding; but since our spellcaster
+        //       will force reselection of itself, that is not a concern.
+        local player = Object.Named("Player");
+        local arch = Object.Archetype(player);
+        local oldFlash = 0;
+        local link = Link.GetOne("RenderFlash", arch);
+        if (link!=0) {
+            oldFlash = LinkDest(link);
+            Link.Destroy(link);
+        }
+        link = Link.Create("RenderFlash", arch, flashArch);
+        Camera.StaticAttach(self);
+        Camera.CameraReturn(self);
+        Link.Destroy(link);
+        if (oldFlash!=0)
+            Link.Create("RenderFlash", arch, oldFlash);
+    }
 }
 
 
@@ -622,8 +653,7 @@ class PossessCaster extends SqRootScript {
         // NOTE: neither DarkUI.InvSelect(self) nor the inv_select command works
         //       to prevent the weapon from being deselected! So we post a
         //       message to force a reselection next frame.
-// TEMP: disable for testing
-//        PostMessage(self, "ForceReselect");
+        PostMessage(self, "ForceReselect");
     }
 
     function OnForceReselect() {
