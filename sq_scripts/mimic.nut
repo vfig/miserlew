@@ -524,92 +524,14 @@ class Possessable extends SqRootScript {
         }
     }
 
-    // function OnNowPossessed() {
-    // }
-
-    /*
-    function Attach(player, attachOffset, attachFacing) {
-        // We create a MovingTerrain that the player will be attached to, along
-        // with points for a minimal path.
-        local anchor = CreateAnchor();
-        local terrpt1 = CreateTerrPt(vector());
-        local terrpt2 = CreateTerrPt(vector(0,0,1));
-        local link;
-        Link.Create("Owns", self, anchor);
-        Link.Create("Owns", self, terrpt1);
-        Link.Create("Owns", self, terrpt2);
-        // Create the links for the MovingTerrain and its path.
-        Link.Create("TPathInit", anchor, terrpt1);
-        link = Link.Create("TPath", terrpt1, terrpt2);
-        LinkTools.LinkSetData(link, "Speed", 0.0);
-        LinkTools.LinkSetData(link, "Pause (ms)", 0);
-        LinkTools.LinkSetData(link, "Path Limit?", true);
-        link = Link.Create("~TPath", terrpt1, terrpt2);
-        LinkTools.LinkSetData(link, "Speed", 0.0);
-        LinkTools.LinkSetData(link, "Pause (ms)", 0);
-        LinkTools.LinkSetData(link, "Path Limit?", true);
-        // Set things in motion (though it will not actually move, of course).
-        Property.Set(anchor, "MovingTerrain", "Active", true);
-        // Finally, attach the player to the anchor.
-        Object.Teleport(player, vector(), vector(), anchor);
-        link = Link.Create("PhysAttach", player, anchor);
-        LinkTools.LinkSetData(link, "Offset", attachOffset);
-        // TODO: send initial facing to the player?
-        return true;
+    function OnNowPossessed() {
+        if (! Object.HasMetaProperty(self, "M-NoFrobWhilePossessed"))
+            Object.AddMetaProperty(self, "M-NoFrobWhilePossessed");
     }
 
-    function Detach(player) {
-        // NOTE: PhysAttach links must be destroyed before their target,
-        //       otherwise the player will still be unable to move.
-        local link = GetAttachLink(player);
-        if (link!=0)
-            Link.Destroy(link);
-        // Clean up the MovingTerrain and its TerrPts.
-        local objs = [];
-        foreach (link in Link.GetAll("Owns", self)) {
-            objs.append(LinkDest(link));
-        }
-        foreach (o in objs) {
-            Object.Destroy(o);
-        }
+    function OnNowDispossessed() {
+        Object.RemoveMetaProperty(self, "M-NoFrobWhilePossessed");
     }
-
-    function GetAttachLink(player) {
-        local objs = [];
-        foreach (link in Link.GetAll("Owns", self)) {
-            objs.append(LinkDest(link));
-        }
-        foreach (o in objs) {
-            local link = Link.GetOne("PhysAttach", player, o);
-            if (link!=0)
-                return link;
-        }
-        return 0;
-    }
-
-    // Internals:
-
-    function CreateAnchor() {
-        local o = Object.BeginCreate("Marker");
-        Object.Teleport(o, vector(), vector(), self);
-        Property.Set(o, "PhysType", "Type", 0); // OBB
-        Property.Set(o, "PhysType", "# Submodels", 1);
-        Property.Set(o, "PhysDims", "Size", vector());
-        Property.Set(o, "PhysControl", "Controls Active", 8|16); // Location|Rotation
-        Property.SetSimple(o, "CollisionType", 0); // No collision
-        Property.SetSimple(o, "PhysCanMant", false);
-        Property.SetSimple(o, "PhysAIColl", false);
-        Object.EndCreate(o);
-        return o;
-    }
-
-    function CreateTerrPt(offset) {
-        local o = Object.BeginCreate("Marker");
-        Object.Teleport(o, offset, vector(), self);
-        Object.EndCreate(o);
-        return o;
-    }
-*/
 }
 
 class PossessableMobile extends SqRootScript {
