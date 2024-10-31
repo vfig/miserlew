@@ -271,6 +271,7 @@ class Possessor extends SqRootScript {
         if (oldTarget!=0) {
             ClearData("IsPossessing");
             Detach(oldTarget);
+            SendMessage(oldTarget, "NowDispossessed");
             // PhysAttach links don't like being destroyed and recreated in
             // the same frame. So try again next frame.
             PostMessage(self, "Possess", target);
