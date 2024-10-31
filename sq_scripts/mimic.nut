@@ -71,6 +71,10 @@ PhysAttach
            +---+
 */
 
+const USE_VIEWMODEL = true;
+const USE_PLAYERLIMBS_API = true;
+const PREVENT_DESELECT = true;
+
 /* Converts TurnOn/TurnOff into possession/dispossession of the CD-linked
  * object, or self if there is no outgoing CD link. */
 class TrapPossess extends SqRootScript {
@@ -203,13 +207,26 @@ class Possessor extends SqRootScript {
         // We don't want the actual head position though, as if that is off the
         // default when we measure (due to headbob/lean) then the camera will
         // drift off our ideal attach point as the spring relaxes. So here we
-        // hardcode the normal/crouch head offsets (from PHYSAPI.H, PHMODATA.C):
-        local playerHeadZ = isCrouched? -0.22 : 1.8;
+        // hardcode the head offsets (from PHYSAPI.H, PHMODATA.C):
+        local playerHeadZ = 1.8
+        if (isCrouched) playerHeadZ += -2.02;
+
+        // When carrying a body the submodel positions are adjusted. We use
+        // the PlayerLimbs service for the viewmodel, which sadly hardcodes
+        // the carry-body mode. Not really an issue for this mission, but we
+        // need to account for the change in camera pos (from PHMODATA.C).
+        if (USE_VIEWMODEL && USE_PLAYERLIMBS_API) playerHeadZ += -0.8;
+
         // The camera position is not at the center of the player's head
-        // submodel, but 0.8 units higher ("eyeloc").
-        local eyeZ = playerHeadZ+0.8;
-// TODO: for debugging positioning
-//        print("isCrouched:"+isCrouched+" playerHeadZ:"+playerHeadZ+" eyeZ:"+eyeZ);
+        // submodel, but a little bit higher ("eyeloc" in PHMOAPI.CPP).
+        local eyeloc = 0.8;
+        if (DarkGame.ConfigIsDefined("eyeloc")) {
+            local f = float_ref();
+            DarkGame.ConfigGetFloat("eyeloc", f);
+            eyeloc = f.tofloat();
+        }
+        local eyeZ = playerHeadZ+eyeloc;
+
         local pointer = FindPossessPoint(target);
         return CalcAttachOffset(target, pointer, eyeZ)
     }
@@ -217,16 +234,10 @@ class Possessor extends SqRootScript {
     function CalcAttachOffset(target, pointer, eyeZ) {
         // PhysAttach offset is always relative to the attached object but in
         // global orientation.
-        // BUG: we now seem to be attaching too low? is that due to playerHeadZ
-        //      being wrong, or eyeZ being wrong, or what?
         local eyeOffset = vector(0,0,-eyeZ);
-        // BUG: when we attach to the guard now, our camera is almost in the
-        //      floor, _way_ lower than the guard's origin i think? (but the
-        //      guard doesn't have a pointer, so maybe not actually a bug?)
-        // BUG: somehow i have broken the possession now, and get killed when
-        //      possessing the guard???
-        // BUG: both of the above are related; when there is no pointer, the
-        //      calculation below ends up wrong.
+        // BUG: When there is no pointer, the calculation below ends up wrong,
+        //      and the attach position ends up not moving with the target.
+        //      Won't fix for now: just make sure we always have pointers.
         local relTo = (pointer!=0)? pointer : target;
         return Object.Position(relTo)+eyeOffset-Object.Position(target);
     }
@@ -648,21 +659,40 @@ class PossessCaster extends SqRootScript {
 
     function OnInvSelect() {
         print(GetTime()+": "+Object.GetName(self)+" ("+self+"): "+message().message);
-        // BUG: using PlayerLimbs.Equip() seems to always apply the "carrying body"
-        //      lowered head position. (but do we care?)
-        PlayerLimbs.Equip(self);
-        AttachViewmodel();
+        if (USE_VIEWMODEL) {
+            if (USE_PLAYERLIMBS_API) {
+                // NOTE: using PlayerLimbs.Equip() is hardcoded to always apply the
+                //       "carrying body" lowered head position. But for this mission
+                //       we dont care; the player is basically disembodied the whole
+                //       time they have this item equipped anyway.
+                PlayerLimbs.Equip(self);
+            } else {
+                // NOTE: using Weapon.Equip() is hardcoded to play either the sword
+                //       or, if the weapon type is 1, blackjack sounds when equipping
+                //       and unequipping.
+                Weapon.Equip(self, 1);
+            }
+            AttachViewmodel();
+        }
     }
 
     function OnInvDeSelect() {
         print(GetTime()+": "+Object.GetName(self)+" ("+self+"): "+message().message);
-        DetachViewmodel();
-        PlayerLimbs.UnEquip(self);
-        // Prevent from being deselected in inventory.
-        // NOTE: neither DarkUI.InvSelect(self) nor the inv_select command works
-        //       to prevent the weapon from being deselected! So we post a
-        //       message to force a reselection next frame.
-        PostMessage(self, "ForceReselect");
+        if (USE_VIEWMODEL) {
+            DetachViewmodel();
+            if (USE_PLAYERLIMBS_API) {
+                PlayerLimbs.UnEquip(self);
+            } else {
+                Weapon.UnEquip(self);
+            }
+        }
+        if (PREVENT_DESELECT) {
+            // Prevent from being deselected in inventory.
+            // NOTE: neither DarkUI.InvSelect(self) nor the inv_select command works
+            //       to prevent the weapon from being deselected! So we post a
+            //       message to force a reselection next frame.
+            PostMessage(self, "ForceReselect");
+        }
     }
 
     function OnForceReselect() {
@@ -764,7 +794,7 @@ class PossessCaster extends SqRootScript {
     }
 
     function CastSpell() {
-        local viewmodel = GetViewmodel();
+        local viewmodel = USE_VIEWMODEL? GetViewmodel() : Object.Named("Player");
         if (viewmodel==0) {
             print("WARNING: tried to cast spell when there is no viewmodel.");
             return;
