@@ -75,6 +75,22 @@ const USE_VIEWMODEL = true;
 const USE_PLAYERLIMBS_API = true;
 const PREVENT_DESELECT = true;
 
+// NOTE: The player arm joint 1 position and orientation differs when using
+//       PlayerLimbs vs Weapon (presumably due to the motions used). If we used
+//       a custom mesh and custom motions, we could presumably nullify that;
+//       but we have the stock meshes and motions, so we need to account for it.
+//       These globals allow the viewmodel placement to be tweaked by hand in
+//       the test mission.
+local g_ViewmodelPos, g_ViewmodelFac;
+if (USE_PLAYERLIMBS_API) {
+    g_ViewmodelPos = vector(-0.0246241,-0.428078,-0.527131);
+    g_ViewmodelFac = vector(0,0,149);
+} else {
+    g_ViewmodelPos = vector(0.2,0.2,2.0);
+    g_ViewmodelFac = vector(0.0,0.0,0.0);
+}
+
+
 /* Converts TurnOn/TurnOff into possession/dispossession of the CD-linked
  * object, or self if there is no outgoing CD link. */
 class TrapPossess extends SqRootScript {
@@ -626,6 +642,101 @@ class PossessPoint extends SqRootScript {
     }
 }
 
+class DebugViewmodelTweaker extends SqRootScript {
+    function OnFrobWorldBegin() {
+        local animS = GetProperty("StTweqJoints", "AnimS");
+        animS = animS|1; // on
+        SetProperty("StTweqJoints", "AnimS", animS);
+        SetData("Adjusting", 1);
+        PostMessage(self, "AdjustTick");
+    }
+
+    function OnFrobWorldEnd() {
+        local animS = GetProperty("StTweqJoints", "AnimS");
+        animS = animS&~1; // off
+        local value = GetProperty("JointPos", "Joint 1");
+        local range = GetProperty("CfgTweqJoints", "    rate-low-high");
+        if (value>range.y && value<range.z) {
+            animS = animS^2; // toggle reverse
+        }
+        SetProperty("StTweqJoints", "AnimS", animS);
+        ClearData("Adjusting");
+        PrepareUpdate();
+    }
+
+    function OnAdjustTick() {
+        if (IsDataSet("Adjusting")) {
+            PrepareUpdate();
+            PostMessage(self, "AdjustTick");
+        }
+    }
+
+    function PrepareUpdate() {
+        local value = GetProperty("JointPos", "Joint 1");
+        local range = GetProperty("CfgTweqJoints", "    rate-low-high");
+        value = (value-range.y)/(range.z-range.y);
+        value = GetValue(value);
+        local message = VarName()+": "+value;
+        print(message);
+        DarkUI.TextMessage(message, 0);
+        Update(value);
+        UpdateViewmodel();
+    }
+
+    function UpdateViewmodel() {
+        local arm = Object.Named("PlyrArm");
+        if (arm==0) {
+            print("no arm");
+            return;
+        }
+        local link = Link.GetOne("~DetailAttachement", arm);
+        if (link==0) {
+            print("no viewmodel");
+            return;
+        }
+        local pos = g_ViewmodelPos;
+        local fac = g_ViewmodelFac;
+        LinkTools.LinkSetData(link, "rel pos", pos);
+        LinkTools.LinkSetData(link, "rel rot", fac);
+    }
+
+    function VarName() { return "(unset)"; }
+    function GetValue(raw) { return raw; }
+    function Update(value) {}
+}
+
+class DebugPosX extends DebugViewmodelTweaker {
+    function VarName() { return "pos.x"; }
+    function GetValue(raw) { return 2.0*raw-1.0; }
+    function Update(value) { g_ViewmodelPos.x = value; }
+}
+class DebugPosY extends DebugViewmodelTweaker {
+    function VarName() { return "pos.y"; }
+    function GetValue(raw) { return 2.0*raw-1.0; }
+    function Update(value) { g_ViewmodelPos.y = value; }
+}
+class DebugPosZ extends DebugViewmodelTweaker {
+    function VarName() { return "pos.z"; }
+    function GetValue(raw) { return 2.0*raw-1.0; }
+    function Update(value) { g_ViewmodelPos.z = value; }
+}
+class DebugFacX extends DebugViewmodelTweaker {
+    function VarName() { return "fac.x"; }
+    function GetValue(raw) { return raw*360.0-180.0; }
+    function Update(value) { g_ViewmodelFac.x = value; }
+}
+class DebugFacY extends DebugViewmodelTweaker {
+    function VarName() { return "fac.y"; }
+    function GetValue(raw) { return raw*360.0-180.0; }
+    function Update(value) { g_ViewmodelFac.y = value; }
+}
+class DebugFacZ extends DebugViewmodelTweaker {
+    function VarName() { return "fac.z"; }
+    function GetValue(raw) { return raw*360.0; }
+    function Update(value) { g_ViewmodelFac.z = value; }
+}
+
+
 class PossessCaster extends SqRootScript {
     function OnContained() {
         if (message().event==eContainsEvent.kContainAdd) {
@@ -758,12 +869,11 @@ class PossessCaster extends SqRootScript {
         Property.SetSimple(viewmodel, "Transient", true);
         Object.Teleport(viewmodel, vector(), vector());
         Object.EndCreate(viewmodel);
-        // Position and rotation found empirically:
         local link = Link.Create("DetailAttachement", viewmodel, arm);
         LinkTools.LinkSetData(link, "Type", 2); // Joint
         LinkTools.LinkSetData(link, "joint", 1);
-        LinkTools.LinkSetData(link, "rel pos", vector(-0.2,-0.2,-0.5));
-        LinkTools.LinkSetData(link, "rel rot", vector(0,0,149));
+        LinkTools.LinkSetData(link, "rel pos", g_ViewmodelPos);
+        LinkTools.LinkSetData(link, "rel rot", g_ViewmodelFac);
         link = Link.Create("ScriptParams", self, viewmodel);
         LinkTools.LinkSetData(link, "", "PossessVM");
 
