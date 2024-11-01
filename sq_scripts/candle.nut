@@ -107,12 +107,28 @@ class CandleGlow extends AnimLightExtra {
 
         Property.Set(self, "ExtraLight", "Amount (-1..1)", glow);
         Property.Set(self, "ExtraLight", "Additive?", true);
+
+        Link.BroadcastOnAllLinks(self, "GlowChange", "DetailAttachement");
     }
 }
 
-class TrigCandleProxy extends SqRootScript {
+class CandleWithProxy extends SqRootScript {
     function OnFrobWorldEnd() {
         Link.BroadcastOnAllLinks(self, "TurnOff", "~DetailAttachement");
+        // Delay detaching for a frame, so that we have a chance to
+        // respond to the proxy changing modes.
+        PostMessage(self, "DetachDetails");
+    }
+
+    function OnDetachDetails() {
         Link.DestroyMany("~DetailAttachement", self, "@object");
+    }
+
+    function OnGlowChange() {
+        local proxy = message().from;
+        Property.Set(self, "ExtraLight", "Amount (-1..1)",
+            Property.Get(proxy, "ExtraLight", "Amount (-1..1)"));
+        Property.Set(self, "ExtraLight", "Additive?",
+            Property.Get(proxy, "ExtraLight", "Additive?"));
     }
 }
