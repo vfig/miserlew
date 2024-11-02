@@ -88,24 +88,65 @@ class TreasureSwitcher extends SqRootScript {
     function OnSim() {
         if (message().starting) {
             MakeLoot(false);
+            OpenEyes(false);
         }
     }
 
     function OnTurnOn() {
         MakeLoot(true);
+        OpenEyes(true);
     }
 
     function OnTurnOff() {
         // Disabled: we don't need it (and see bug note above).
         //MakeLoot(false);
+        //OpenEyes(false);
     }
 
     function MakeLoot(becomeLoot) {
-
         if (becomeLoot) {
             Object.RemoveMetaPropertyFromMany("M-NotActuallyLoot", "@M-NotActuallyLoot");
         } else {
             Object.AddMetaPropertyToMany("M-NotActuallyLoot", "@SwitchTreasure,-@M-NotActuallyLoot");
+        }
+    }
+
+    function OpenEyes(open) {
+        if (open) {
+            Object.RemoveMetaPropertyFromMany("M-EyesShut", "@M-HasEyes");
+        } else {
+            Object.AddMetaPropertyToMany("M-EyesShut", "@M-HasEyes,-@M-EyesShut");
+        }
+    }
+}
+
+class CloseYourEyes extends SqRootScript {
+    function OnBeginScript() {
+        SendMessage(self, "CloseYourEyes");
+    }
+
+    function OnEndScript() {
+        SendMessage(self, "OpenYourEyes");
+    }
+}
+
+class SwitchRepl extends SqRootScript {
+    function OnCloseYourEyes() {
+        SetReplTextures(false);
+    }
+
+    function OnOpenYourEyes() {
+        SetReplTextures(true);
+    }
+
+    function SetReplTextures(on) {
+        for (local i=0; i<4; ++i) {
+            local key = (on? "On":"Off")+"R"+i;
+            local prop = "OTxtRepr"+i;
+            if (key in userparams()) {
+                local tex = userparams()[key];
+                SetProperty(prop, tex);
+            }
         }
     }
 }
