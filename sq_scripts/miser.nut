@@ -632,3 +632,182 @@ class DebugSoundGrenade extends SqRootScript {
         }
     }
 }
+
+/* Sends TurnOn when the player or at least one object with sufficient
+ * mass enters the room. Sends TurnOff when all such objects have left.
+*/
+class TrigRoomPlayerEtc extends SqRootScript {
+    function OnPlayerRoomEnter() {
+        Remember(message().MoveObjId);
+    }
+    function OnPlayerRoomExit() {
+        Forget(message().MoveObjId);
+    }
+    function OnCreatureRoomEnter() {
+        Remember(message().MoveObjId);
+    }
+    function OnCreatureRoomExit() {
+        Forget(message().MoveObjId);
+    }
+    function OnObjectRoomEnter() {
+        Remember(message().MoveObjId);
+    }
+    function OnObjectRoomExit() {
+        Forget(message().MoveObjId);
+    }
+
+    function IsTriggerObj(o) {
+        const massThreshold = 10.0;
+        local isMovable = false;
+        local isHeavyEnough = false;
+        if (Property.Possessed(o, "PhysType")) {
+            local type = Property.Get(o, "PhysType", "Type");
+            print(o+" ("+Object.GetName(Object.Archetype(o))+"): type "+type);
+            isMovable = (type==1 || type==2); // Sphere, Sphere Hat
+        }
+        if (Property.Possessed(o, "PhysAttr")) {
+            local mass = Property.Get(o, "PhysAttr", "Mass");
+            print(o+" ("+Object.GetName(Object.Archetype(o))+"): mass "+mass);
+            isHeavyEnough = (mass>=massThreshold);
+        }
+        return (isMovable && isHeavyEnough);
+    }
+
+    function Remember(o) {
+        if (IsTriggerObj(o)) {
+            if (! Link.AnyExist("Population", self, o)) {
+                print("## creating link: "+self+" -> "+o+" ("+Object.GetName(Object.Archetype(o))+")");
+                Link.Create("Population", self, o);
+            }
+        }
+        DoTrigger();
+    }
+
+    function Forget(o) {
+        if (Link.AnyExist("Population", self, o)) {
+            print("## destroying link: "+self+" -> "+o+" ("+Object.GetName(Object.Archetype(o))+")");
+        }
+        Link.DestroyMany("Population", self, o);
+        DoTrigger();
+    }
+
+    function DoTrigger() {
+        local wasOn = IsDataSet("Populated");
+        local isOn = Link.AnyExist("Population", self);
+        if (!wasOn && isOn) {
+            SetData("Populated", "1");
+            Link.BroadcastOnAllLinks(self, "TurnOn", "ControlDevice");
+        } else if (wasOn && !isOn) {
+            ClearData("Populated");
+            Link.BroadcastOnAllLinks(self, "TurnOff", "ControlDevice");
+        }
+    }
+}
+
+/* StdTrap base class, ported from T2.
+   Traps in general derive from this script and in so doing get the following
+   basic infrastructure:
+   * Handling of "TurnOn" and "TurnOff" messages, dispatched to an activation method.
+   * Interpretation of locked or unlocked traps.
+   * Interpretation of trap flags, such as Invert (reverse sense of on and off)
+     NoOn and NoOff (intercept the handling of certain messages) and Once (destroy
+     object after completion, or just lock it?)
+*/
+class SqStdTrap extends SqRootScript
+{
+// METHODS:
+    function Activate(on, sender) {
+        // overload me
+    }
+
+    function HandleMessage(on, sender) {
+        const TRAPF_NONE   = 0x000;
+        const TRAPF_ONCE   = 0x001;
+        const TRAPF_INVERT = 0x002;
+        const TRAPF_NOON   = 0x004;
+        const TRAPF_NOOFF  = 0x008;
+        local flags=0;
+        local invert=false, activated=false;
+
+        if(Property.Possessed(self,"TrapFlags"))
+            flags=Property.Get(self,"TrapFlags");
+        invert=flags&TRAPF_INVERT;
+        if(!Locked.IsLocked(self) && sender!=self) {
+            if(on && !(flags & TRAPF_NOON)) {
+                Activate(!invert,sender);
+                activated=true;
+            } else if(!on && !(flags & TRAPF_NOOFF)) {
+                Activate(invert,sender);
+                activated=true;
+            }
+        }
+        if(activated && (flags&TRAPF_ONCE))
+            Property.Set(self,"Locked",true);
+    }
+
+// MESSAGES:
+
+    function OnTurnOn() {
+        HandleMessage(true,message().from);
+    }
+
+    function OnTurnOff() {
+        HandleMessage(false,message().from);
+    }
+
+    function OnTimer() {
+        if(message().name=="TurnOn")
+            HandleMessage(true,message().from);
+        else if(message().name=="TurnOff")
+            HandleMessage(false,message().from);
+    }
+}
+
+/* TrapTimedRelay, ported from T2, and slightly tweaked.
+   Like a Relay Trap, but waits a certain amount of time before passing
+   on the message.  If another message is received before the time passes,
+   the previous message is never delivered. */
+class SqTrapTimedRelay extends SqStdTrap
+{
+// METHODS:
+
+    function GetTimeDelay(on) {
+        if(Property.Possessed(self,"ScriptTiming"))
+            return Property.Get(self,"ScriptTiming")/1000.0;
+        return 1.0;
+    }
+ 
+    function Activate(on, sender) {
+        local time_delay=GetTimeDelay(on);
+        local msg=on?"TimedTurnOn":"TimedTurnOff";
+        if (GetData("MessageTimer")!=0)
+            KillTimer(GetData("MessageTimer"));
+        local thandle = SetOneShotTimer(self,msg,time_delay);
+        SetData("MessageTimer",thandle);
+    }
+
+// MESSAGES:
+  
+    function OnBeginScript() {
+        if (!IsDataSet("MessageTimer"))
+            SetData("MessageTimer",0);
+    }
+
+    function OnTimer() {
+        if (message().name == "TimedTurnOn")
+            Link.BroadcastOnAllLinks(self,"TurnOn","ControlDevice");
+        if (message().name == "TimedTurnOff")
+            Link.BroadcastOnAllLinks(self,"TurnOff","ControlDevice");
+    }
+}
+
+class SqTrapTimedOffRelay extends SqTrapTimedRelay
+{
+    /* Like TrapTimedRelay Trap, but only delays TurnOff messages. */
+    function GetTimeDelay(on) {
+        if (on)
+            return 0.0;
+        else
+            return base.GetTimeDelay(on);
+    }
+}
