@@ -811,3 +811,81 @@ class SqTrapTimedOffRelay extends SqTrapTimedRelay
             return base.GetTimeDelay(on);
     }
 }
+
+/* Auto-create AIWatchObj links when reaching a patrol point that has
+ * Watch Link Defaults, or auto-trigger conversations when reaching a
+ * patrol point with a Conversation.
+ */
+class PatrolActor extends SqRootScript
+{
+    function OnPatrolPoint() {
+        local trol = message().patrolObj;
+        if (Property.Possessed(trol, "AI_WtchPnt")) {
+            if (! Link.AnyExist("AIWatchObj", self, trol)) {
+                Link.Create("AIWatchObj", self, trol);
+            }
+        } else if (Property.Possessed(trol, "AI_Converation")) {
+            if (! Link.AnyExist("AIConversationActor", trol)) {
+                local link = Link.Create("AIConversationActor", trol, self);
+                LinkTools.LinkSetData(link, "Actor ID", 1);
+            }
+            AI.StartConversation(trol);
+        }
+    }
+}
+
+class WineChoreography extends SqRootScript
+{
+    function ShowCarriedWine(show) {
+        foreach (link in Link.GetAll("~DetailAttachement", self)) {
+            Property.SetSimple(LinkDest(link), "HasRefs", show);
+        }
+    }
+
+    function ShowElevWine(elev, show) {
+        foreach (link in Link.GetAll("~DetailAttachement", elev)) {
+            Property.SetSimple(LinkDest(link), "HasRefs", show);
+        }
+    }
+}
+
+class Clyde extends WineChoreography
+{
+    function OnGetWine() {
+        ShowCarriedWine(true);
+    }
+
+    function OnPutWineOnElev() {
+        local elevName = message().data;
+        if (elevName==null || elevName=="")
+            return;
+        local elev = Object.Named(elevName);
+        ShowCarriedWine(false);
+        ShowElevWine(elev, true);
+    }
+}
+
+class ClydeFetchWine extends SqRootScript
+{
+    function OnTurnOn() {
+        // We will start locked, and unlock once the big transition happens.
+        // After that, we only ever want to fire the once, so lock again.
+        if (Locked.IsLocked(self))
+            return;
+        print("Clyde!! Fetch me more wine!!!");
+        SetProperty("Locked", true);
+        local who = LinkDest(Link.GetOne("Population", self));
+        local where = LinkDest(Link.GetOne("Route", self));
+        if (who==0 || where==0) {
+            print("ERROR: Who? Where?");
+            return;
+        }
+        // Switch up patrol paths.
+        Object.RemoveMetaProperty(who, "M-DoesPatrol");
+        local link = Link.GetOne("AICurrentPatrol", who);
+        if (link!=0)
+            Link.Destroy(link);
+        Link.Create("AICurrentPatrol", who, where);
+        Object.AddMetaProperty(who, "M-DoesPatrol");
+    }
+}
