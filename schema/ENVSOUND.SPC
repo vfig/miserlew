@@ -91,7 +91,7 @@ tag Operation KeyFit OpenDoor
 // in pounds
 tag_int Weight
 
-tag ArrowType Broadhead Earth Fire Gas HolyWater Noisemaker Rope Water Steampuff Burp Firebolt MagicMissile Spear HammerSpell GhostShot Web FrogShot BugShot Assassin
+tag ArrowType Broadhead Earth Fire Gas HolyWater Noisemaker Rope Water Steampuff Burp Firebolt MagicMissile Spear HammerSpell GhastSpell GhostShot Web FrogShot BugShot Assassin
 
 tag MageShotType MageFire MageEarth MageWater MageAir MageExp Sandbag
 
@@ -112,7 +112,7 @@ tag Material2 Carpet Ceramic Chain Earth Flesh Glass Gravel Ice Liquid Ladder Me
 //Tags for Creature types//
 ///////////////////////////
 
-tag CreatureType Ape Apparition Burrick ConTrick Crayman ElemAir ElemFire Frog Guard Haunt Player Servant Spider Sweel Zombie 
+tag CreatureType Ape Apparition Burrick ConTrick Crayman ElemAir ElemFire Frog Ghast Guard Haunt Player Servant Spider Sweel Zombie
 
 /////////////////////////
 //Media Transition Tags//

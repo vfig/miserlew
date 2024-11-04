@@ -440,6 +440,4 @@ voice vair		//Air Elemental
 
 voice vshrimp	//Little guy in outtakes miss18
 
-
-
-
+voice vghast    // GHAST

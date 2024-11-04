@@ -150,7 +150,7 @@ env_tag (Event Collision) (CreatureType Ape Crayman Guard Haunt) (ArrowType Broa
 schema arrow_body
 archetype HIT_PROJECTILE
 ar_body1 ar_body2
-env_tag (Event Collision) (CreatureType Apparition Burrick Frog Servant Spider Zombie) (ArrowType Broadhead Rope) 
+env_tag (Event Collision) (CreatureType Apparition Burrick Frog Ghast Servant Spider Zombie) (ArrowType Broadhead Rope) 
 
 schema arrow_rock
 archetype HIT_PROJECTILE
@@ -214,7 +214,7 @@ env_tag (Event Collision) (ArrowType Firebolt) (CreatureType Player Servant Spid
 schema gasarrow_hitz
 archetype HIT_PROJECTILE
 gasarrow
-env_tag (Event Death) (ArrowType Gas) 
+env_tag (Event Death) (ArrowType Gas)
 
 //HolyWaterArrow explodes
 schema holyarrow_hit
@@ -356,7 +356,7 @@ schema sword_body
 archetype HIT_WEAPON
 volume -1
 sw_body1 sw_body2 sw_body3 sw_body4
-env_tag (Event Damage) (DamageType Slash) (Damage 1 100) (Health 0 100) (CreatureType Apparition Burrick Frog Servant Spider Zombie) (WeaponType Sword)
+env_tag (Event Damage) (DamageType Slash) (Damage 1 100) (Health 0 100) (CreatureType Apparition Burrick Frog Ghast Servant Spider Zombie) (WeaponType Sword)
 
 
 schema sword_rock
