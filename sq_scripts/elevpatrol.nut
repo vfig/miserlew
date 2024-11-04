@@ -61,8 +61,8 @@ class ElevatorPatroller extends SqRootScript {
 
     function DebugLogMessage() {
         if (DEBUG_ELEVATOR) print("**** "+message().message
-            +" to:"+self
-            +" from:"+message().from
+            +" to:"+desc(self)
+            +" from:"+desc(message().from)
             +" data:"+message().data
             +" data2:"+message().data2
             +" data3:"+message().data3
@@ -81,6 +81,12 @@ class ElevatorPatroller extends SqRootScript {
     }
 
     function Setup(tryCount) {
+        // TODO: this is all stuff where we try to identify
+        //       the important elevator points automatically, so
+        //       we can add conversations to them and so on.
+        //       that would be cool for a more general solution,
+        //       but not needed for this mission, so skipping it!
+        /*        
         if (! Link.AnyExist("AICurrentPatrol", self)) {
             if (tryCount==0) {
                 // Need an AICurrentPatrol link; try again later.
@@ -158,6 +164,7 @@ class ElevatorPatroller extends SqRootScript {
         }
 
         // NEXT UP: Find the tpath+trolpt correspondences.
+        */
     }
 
     function OnTimer() {
@@ -171,9 +178,9 @@ class ElevatorPatroller extends SqRootScript {
             local link = Link.GetOne("AICurrentPatrol", self);
             local msg;
             if (status) {
-                msg = "patrolling to "+LinkDest(link);
+                msg = "patrolling to "+desc(LinkDest(link));
             } else {
-                msg = "NOT PATROLLING (to "+LinkDest(link)+")";
+                msg = "NOT PATROLLING (to "+desc(LinkDest(link))+")";
             }
             if (DEBUG_ELEVATOR) print("----------------------------- "+msg);
             SetOneShotTimer("DumpPatrolStatus", 1.0);
@@ -199,7 +206,7 @@ class ElevatorPatroller extends SqRootScript {
             // Object.Teleport(self, Object.Position(trol), Object.Facing(self)); // HACK!
             // // Property.SetSimple(self, "AI_Patrol", true);
             local link = Link.GetOne("AICurrentPatrol", self);
-            if (DEBUG_ELEVATOR) print("New patrol target: "+LinkDest(link));
+            if (DEBUG_ELEVATOR) print("New patrol target: "+desc(LinkDest(link)));
         }
     }
 
@@ -220,7 +227,7 @@ class ElevatorPatroller extends SqRootScript {
                 LinkTools.LinkSetData(link, "Actor ID", 1);
             }
             local result = AI.StartConversation(trol);
-            if (DEBUG_ELEVATOR) print("@@@@ Started conversation on "+trol+" result: "+result);
+            if (DEBUG_ELEVATOR) print("@@@@ Started conversation on "+desc(trol)+" result: "+result);
         }
     }
 
@@ -254,8 +261,9 @@ class ElevatorPatroller extends SqRootScript {
         // // the elevator!
         // // // HACK! but not working:
         // // AI.ClearGoals(self);
+        print("Trying to force patrol to: "+desc(trol));
         // // HACK! but not working:
-        Object.Teleport(self, vector(), vector(), self); // HACK: force the AI to re-pathfind.
+        Object.Teleport(self, vector(0,0,1), vector(), self); // HACK: force the AI to re-pathfind.
         // Object.Teleport(self, Object.Position(trol), Object.Facing(self)); // HACK!
         // Link.Create("AICurrentPatrol", self, trol);
         // // Property.SetSimple(self, "AI_Patrol", true);
@@ -316,6 +324,11 @@ class ElevatorPatroller extends SqRootScript {
             //     if (DEBUG_ELEVATOR) print("ERROR: embark point "+embark+" has no Watch Link Defaults.");
             //     return;
             // }
+
+        // // // HACK! but not working: ???????
+        // print("Trying to force reset pathfinding");
+        // Object.Teleport(self, vector(0,0,0), vector(), self); // HACK: force the AI to re-pathfind.
+
             Reply(false);
         } else {
             if (DEBUG_ELEVATOR) print("#### Elevator is NOT READY");
@@ -339,10 +352,10 @@ class ElevatorPatroller extends SqRootScript {
             Reply(false);
             return;
         }
-        if (DEBUG_ELEVATOR) print("Changing patrol to "+trol);
+        if (DEBUG_ELEVATOR) print("Changing patrol to "+desc(trol));
         // // Property.SetSimple(self, "AI_Patrol", false);
         local link = Link.GetOne("AICurrentPatrol", self);
-        if (DEBUG_ELEVATOR) print("Old patrol target: "+LinkDest(link));
+        if (DEBUG_ELEVATOR) print("Old patrol target: "+desc(LinkDest(link)));
         Link.DestroyMany("AICurrentPatrol", self, 0);
         SetProperty("AI_Patrol", false);
         SetOneShotTimer("ResetPatrol", 1.5, trolName);
@@ -407,7 +420,7 @@ class ElevatorNotify extends SqRootScript {
         if (message().starting) {
             local link = Link.GetOne("TPathInit", self);
             if (! link) {
-                if (DEBUG_ELEVATOR) print("WARNING: elevator "+self+" does not have a TPathInit link.");
+                if (DEBUG_ELEVATOR) print("WARNING: elevator "+desc(self)+" does not have a TPathInit link.");
                 return;
             }
             local atPt = LinkDest(link);
@@ -420,7 +433,7 @@ class ElevatorNotify extends SqRootScript {
     function OnStopping() {
         local link = Link.GetOne("TPathNext", self);
         if (! link) {
-            if (DEBUG_ELEVATOR) print("WARNING: elevator "+self+" path simply ends.");
+            if (DEBUG_ELEVATOR) print("WARNING: elevator "+desc(self)+" path simply ends.");
             return;
         }
         local atPt = LinkDest(link);
