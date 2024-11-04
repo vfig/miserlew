@@ -1,28 +1,3 @@
-desc <- function(obj)
-{
-    local name;
-    if (obj == 0) {
-        name = "[nothing]";
-    } else {
-        name = Object.GetName(obj);
-        if (name == "") {
-            // Look up the archetype's name instead.
-            local archetype_name = Object.GetName(Object.Archetype(obj));
-            if (archetype_name == "") {
-                name = "[unknown]";
-            } else {
-                local first = archetype_name.slice(0, 1).toupper();
-                if (first == "A" || first == "E" || first == "I" || first == "O" || first == "U") {
-                    name = "an " + archetype_name;
-                } else {
-                    name = "a " + archetype_name;
-                }
-            }
-        }
-    }
-    return (name + " (" + obj + ")");
-}
-
 class FallLadder extends SqRootScript {
     function OnTurnOn() {
         local done = IsDataSet("Done");
