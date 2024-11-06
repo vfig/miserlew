@@ -31,6 +31,13 @@ schema chomp_fire
 volume -1000
 h_gs3
 
+// BOTTLE SHATTERING
+schema bottle_die
+archetype DEVICES
+volume -1
+glasbit4 glasbit5
+env_tag (Event Death) (DeviceType Bottle)
+
 // DEBUG SOUND
 schema debug_waterlp
 mono_loop 0 0
