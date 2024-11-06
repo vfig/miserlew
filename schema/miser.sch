@@ -37,6 +37,7 @@ archetype DEVICES
 volume -1
 glasbit4 glasbit5
 env_tag (Event Death) (DeviceType Bottle)
+env_tag (Event Death) (DamageType Bash Slash Poke) (Material Glass) (DeviceType Bottle)
 
 // DEBUG SOUND
 schema debug_waterlp
