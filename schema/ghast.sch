@@ -7,7 +7,7 @@ env_tag (Event Death) (CreatureType Ghast)
 // FEET
 schema foot_ghast_a
 archetype FOOT_AI
-volume -2000
+volume -2500
 elemair1 elemair2 elemair3
 env_tag (Event Footstep) (CreatureType Ghast) (Material Carpet Ceramic Chain Earth Flesh Glass Gravel Ice)
 env_tag (Event Footstep) (CreatureType Ghast) (Material Liquid Ladder Metal Rope Stone Tile Vegetation Wood)
