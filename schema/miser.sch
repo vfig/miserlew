@@ -39,6 +39,12 @@ glasbit4 glasbit5
 env_tag (Event Death) (DeviceType Bottle)
 env_tag (Event Death) (DamageType Bash Slash Poke) (Material Glass) (DeviceType Bottle)
 
+//Son of Bang the Gong
+schema gong_ring_echo
+archetype DEVICES
+volume -1000
+gong02
+
 // DEBUG SOUND
 schema debug_waterlp
 mono_loop 0 0
