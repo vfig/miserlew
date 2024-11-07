@@ -662,12 +662,10 @@ class TrigRoomPlayerEtc extends SqRootScript {
         local isHeavyEnough = false;
         if (Property.Possessed(o, "PhysType")) {
             local type = Property.Get(o, "PhysType", "Type");
-            print(o+" ("+Object.GetName(Object.Archetype(o))+"): type "+type);
             isMovable = (type==1 || type==2); // Sphere, Sphere Hat
         }
         if (Property.Possessed(o, "PhysAttr")) {
             local mass = Property.Get(o, "PhysAttr", "Mass");
-            print(o+" ("+Object.GetName(Object.Archetype(o))+"): mass "+mass);
             isHeavyEnough = (mass>=massThreshold);
         }
         return (isMovable && isHeavyEnough);
@@ -676,7 +674,6 @@ class TrigRoomPlayerEtc extends SqRootScript {
     function Remember(o) {
         if (IsTriggerObj(o)) {
             if (! Link.AnyExist("Population", self, o)) {
-                print("## creating link: "+self+" -> "+o+" ("+Object.GetName(Object.Archetype(o))+")");
                 Link.Create("Population", self, o);
             }
         }
@@ -684,9 +681,6 @@ class TrigRoomPlayerEtc extends SqRootScript {
     }
 
     function Forget(o) {
-        if (Link.AnyExist("Population", self, o)) {
-            print("## destroying link: "+self+" -> "+o+" ("+Object.GetName(Object.Archetype(o))+")");
-        }
         Link.DestroyMany("Population", self, o);
         DoTrigger();
     }
