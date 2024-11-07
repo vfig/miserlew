@@ -827,3 +827,20 @@ class PatrolActor extends SqRootScript
         }
     }
 }
+
+/* Sends TurnOn when any objects of a given archetype (linked with a
+ * ScriptParams("TrackArch") enter the room. Sends TurnOff if all of them
+ * have left the room.
+*/
+class TrigArchetypeRoom extends TrigRoomPlayerEtc {
+    function GetTrackedArchetype() {
+        foreach (link in Link.GetAll("ScriptParams", self))
+            if (LinkTools.LinkGetData(link,"")=="TrackArch")
+                return LinkDest(link);
+        return 0;
+    }
+
+    function IsTriggerObj(o) {
+        return Object.InheritsFrom(o, GetTrackedArchetype());
+    }
+}
