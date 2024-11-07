@@ -369,6 +369,16 @@ class EditorOnly extends SqRootScript
     }
 }
 
+class EditorVisibleOnly extends SqRootScript
+{
+    function OnBeginScript()
+    {
+        if (! IsEditor()) {
+            SetProperty("RenderType", 1);
+        }
+    }
+}
+
 class CheckDarkGameType extends SqRootScript
 {
     // Sends TurnOn to all ControlDevice links if
