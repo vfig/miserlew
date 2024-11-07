@@ -621,7 +621,12 @@ class PossessCaster extends SqRootScript {
             print("WARNING: tried to cast spell when there is no viewmodel.");
             return;
         }
-        Physics.LaunchProjectile(viewmodel, "PossessSpell", 1.0, 2|8, vector()); // PRJ_FLG_PUSHOUT|PRJ_FLG_GRAVITY
+        // We could use a vhot in the model to mark the firing point, and
+        // calculate the pos with Object.CalcRelTransform(), but since the
+        // viewmodel is _probably_ going to have to be a mesh to have the
+        // bow-zoom, and meshes can't have vhots, maybe there's no point.
+        local o = Object.Create("PossessSpell");
+        Object.Teleport(o, vector(0.588,0.025,0.125), vector(), viewmodel);
     }
 
 
@@ -637,11 +642,5 @@ class PossessViewmodel extends SqRootScript {
     function OnMessage() {
         // TEMP: print all other messages we might need to handle.
         print("PossessViewmodel - "+GetTime()+": "+Object.GetName(self)+" ("+self+"): "+message().message);
-    }
-}
-
-class DebugMessages extends SqRootScript {
-    function OnMessage() {
-        print(GetTime()+": "+Object.GetName(self)+" ("+self+"): "+message().message);
     }
 }

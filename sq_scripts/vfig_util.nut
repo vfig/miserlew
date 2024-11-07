@@ -24,6 +24,30 @@ desc <- function(obj)
     return (name + " (" + obj + ")");
 }
 
+class DumpMessages extends SqRootScript {
+    function OnMessage() {
+        print(GetTime()+": "+desc(self)+": "+message().message);
+    }
+}
+
+class DumpPhysMessages extends DumpMessages {
+    function OnBeginScript() {
+        Physics.SubscribeMsg(self, ePhysScriptMsgType.kCollisionMsg
+            | ePhysScriptMsgType.kContactMsg | ePhysScriptMsgType.kEnterExitMsg
+            | ePhysScriptMsgType.kFellAsleepMsg | ePhysScriptMsgType.kWokeUpMsg
+            | ePhysScriptMsgType.kMadePhysMsg
+            | ePhysScriptMsgType.kMadeNonPhysMsg);
+    }
+
+    function OnEndScript() {
+        Physics.UnsubscribeMsg(self, ePhysScriptMsgType.kCollisionMsg
+            | ePhysScriptMsgType.kContactMsg | ePhysScriptMsgType.kEnterExitMsg
+            | ePhysScriptMsgType.kFellAsleepMsg | ePhysScriptMsgType.kWokeUpMsg
+            | ePhysScriptMsgType.kMadePhysMsg
+            | ePhysScriptMsgType.kMadeNonPhysMsg);
+    }
+}
+
 class DebugMessage extends SqRootScript
 {
     /* Shows the message in the Inventory > Long Description property when frobbed or turned on. */
