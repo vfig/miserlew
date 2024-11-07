@@ -25,8 +25,10 @@ desc <- function(obj)
 }
 
 class DumpMessages extends SqRootScript {
-    function OnMessage() {
+    function PreFilterMessage(message)
+    {
         print(GetTime()+": "+desc(self)+": "+message().message);
+        return false;
     }
 }
 
