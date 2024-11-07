@@ -24,6 +24,8 @@ const USE_VIEWMODEL = true;
 const USE_PLAYERLIMBS_API = true;
 const PREVENT_DESELECT = true;
 
+const POSSESS_POINT_RADIUS = 1.0;
+
 // NOTE: The player arm joint 1 position and orientation differs when using
 //       PlayerLimbs vs Weapon (presumably due to the motions used). If we used
 //       a custom mesh and custom motions, we could presumably nullify that;
@@ -142,12 +144,7 @@ class Possessor extends SqRootScript {
     }
 
     function FindPossessPoint(target) {
-        foreach (link in Link.GetAll("~DetailAttachement", target)) {
-            if (Object.InheritsFrom(LinkDest(link), "PossessPoint")) {
-                return LinkDest(link);
-            }
-        }
-        return 0;
+        return SendMessage(target, "GetPossessPoint");
     }
 
     function AttachOffset(target) {
@@ -342,10 +339,50 @@ class Possessor extends SqRootScript {
 }
 
 class Possessable extends SqRootScript {
-    function OnPossessStimStimulus() {
-        if (message().intensity>0) {
-            local player = Object.Named("Player");
-            SendMessage(player, "Possess", self);
+    function GetPossessPoint() {
+        foreach (link in Link.GetAll("~DetailAttachement", self)) {
+            if (Object.InheritsFrom(LinkDest(link), "PossessPoint")) {
+                return LinkDest(link);
+            }
+        }
+        return 0;
+    }
+
+    function OnGetPossessPoint() {
+        Reply(GetPossessPoint());
+    }
+
+    function OnBeginScript() {
+        Physics.SubscribeMsg(self, ePhysScriptMsgType.kCollisionMsg);
+    }
+
+    function OnEndScript() {
+        Physics.UnsubscribeMsg(self, ePhysScriptMsgType.kCollisionMsg);
+    }
+
+    function OnPhysCollision() {
+        local pt = GetPossessPoint();
+        if (pt==0) {
+            print("ERROR: Possessable "+desc(self)+" has no PossessPoint.");
+            return;
+        }
+        local pos = Object.Position(pt);
+        // I used to do this with stims, and still can if I could be
+        // bothered to faff with Weak Point offsets. But then we would
+        // still need the same offsets for camera attachment. So I can't
+        // be bothered.
+        if (message().collType==ePhysCollisionType.kCollObject
+        && Object.InheritsFrom(message().collObj, "PossessShot")) {
+            // Make sure the shot was accurate, i.e. it hit within a
+            // cylinder along the shot path with radius POSSESS_POINT_RADIUS.
+            local collPos = message().collPt;
+            local collNorm = message().collNormal.GetNormalized();
+            local t = (pos-collPos).Dot(collNorm);
+            local nearest = collPos+(collNorm*t);
+            local dist = (pos-nearest).Length();
+            if (dist<=POSSESS_POINT_RADIUS) {
+                PostMessage("Player", "Possess", self);
+            }
         }
     }
 
@@ -554,6 +591,7 @@ class PossessCaster extends SqRootScript {
         //      the viewmodel, or something? investigate.
         if (IsDataSet("AttachTry")) {
             local attempt = GetData("AttachTry");
+            print("TryAttach: "+attempt);
             if (attempt<60) {
                 local arm = Object.Named("PlyrArm");
                 if (arm==0) {
@@ -604,15 +642,17 @@ class PossessCaster extends SqRootScript {
         }
         local viewmodel = Object.BeginCreate(arch);
         Property.SetSimple(viewmodel, "Transient", true);
-        Object.Teleport(viewmodel, vector(), vector());
+        // Object.Teleport(viewmodel, vector(
+        //     -2,64,-38            /* temp */
+        //     ), vector());
         Object.EndCreate(viewmodel);
-        local link = Link.Create("DetailAttachement", viewmodel, arm);
+        local link = Link.Create("ScriptParams", self, viewmodel);
+        LinkTools.LinkSetData(link, "", "PossessVM");
+        link = Link.Create("DetailAttachement", viewmodel, arm);
         LinkTools.LinkSetData(link, "Type", 2); // Joint
         LinkTools.LinkSetData(link, "joint", 1);
         LinkTools.LinkSetData(link, "rel pos", g_ViewmodelPos);
         LinkTools.LinkSetData(link, "rel rot", g_ViewmodelFac);
-        link = Link.Create("ScriptParams", self, viewmodel);
-        LinkTools.LinkSetData(link, "", "PossessVM");
     }
 
     function CastSpell() {
