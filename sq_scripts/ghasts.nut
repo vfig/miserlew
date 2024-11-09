@@ -107,7 +107,7 @@ class Clyde extends WineChoreography
     /* Signal received, time to do a routine */
 
     function OnSignalAI() {
-        log("signal:"+message().signal);
+        log(message().message+":"+message().signal);
         if (message().signal=="gong_ring") {
             // RtBeginFetchWine();
             // TODO - do we handle this here or with Signal Response? does it matter?
@@ -117,6 +117,7 @@ class Clyde extends WineChoreography
     /* Routine: Fetch wine (a bottle if we can, otherwise cask) */
 
     function OnFetchWine() {
+        log(message().message);
         if (HasActiveRoutine()) {
             log(message().message+": already in routine, aborting.");
             return false;
@@ -135,14 +136,21 @@ class Clyde extends WineChoreography
     }
 
     function OnAnyWineBottles_() {
-        if (Link.AnyExist("Population", "BottleRoom")) {
-            // There are bottles! Go through the motions of getting one.
+        log(message().message);
+        local link = Link.GetOne("Population", "BottleRoom");
+        if (link!=0) {
+            // There are bottles! Reserve one so we can get it.
+            log("There are wine bottles.");
+            local bottle = LinkDest(link);
+            if (! Object.HasMetaProperty(bottle, "M-ReservedForAI"))
+                Object.AddMetaProperty(bottle, "M-ReservedForAI");
             Reply(true);
         } else {
             // No more bottles left, so never look here again.
+            log("No more wine bottles.");
             local bottlePt = Object.Named("ClydeBottlePt");
             if (bottlePt!=0) {
-                ObjectDestroy(bottlePt);
+                Object.Destroy(bottlePt);
             }
             // Fall back to fetching wine again from scratch.
             PostMessage(self, "FetchWine");
@@ -150,7 +158,11 @@ class Clyde extends WineChoreography
         }
     }
 
+    // TODO: should reserve a wine bottle so the player cant interrupt at this
+    //       stage.
+
     function OnGetWineBottle() {
+        log(message().message);
         local link = Link.GetOne("Population", "BottleRoom");
         if (link!=0) {
             local bottle = LinkDest(link);
@@ -160,7 +172,36 @@ class Clyde extends WineChoreography
         }
     }
 
+    function OnIsElevatorReady_() {
+        log(message().message);
+        local elev = Object.Named("MainElev");
+        local elevBottomPt = Object.Named("ElevBottomPt");
+        local downButton = Object.Named("ElevDownButton2");
+        if (elev==0 || elevBottomPt==0 || downButton==0) {
+            log("Can't find object needed for IsElevatorReady? script!");
+            Reply(false);
+            return;
+        }
+        local terrPt = SendMessage(elev, "At?");
+        if (terrPt!=elevBottomPt) {
+            log("Elevator is at:"+terrPt);
+            log("Elevator is not ready. Waiting...");
+            // Would prefer to keep the script to simple logic and decision-making,
+            // and have the pseudoscripts make the AI do actions, but to do this
+            // loop we would need a multi-stage Conversation rather than just
+            // an AIWatchObj, and right now I can't be bothered.
+            AI.MakeFrobObjWith(self, downButton, 0);
+            Reply(false);
+            return;
+        }
+        if (! Object.HasMetaProperty(elev, "M-ElevPaused"))
+            Object.AddMetaProperty(elev, "M-ElevPaused");
+        Reply(true);
+    }
+
     function OnLoadElevator() {
+        log(message().message);
+        local elev = Object.Named("MainElev");
         local burden = 0;
         foreach (link in Link.GetAll("Contains", self)) {
             local type = LinkTools.LinkGetData(link, "");
@@ -171,6 +212,7 @@ class Clyde extends WineChoreography
                 break;
             }
         }
+        Object.RemoveMetaProperty(elev, "M-ElevPaused");
         ClearRoutine();
         log("TODO: Found burden:"+burden+", need to load elevator with it.");
     }
