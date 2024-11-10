@@ -109,8 +109,16 @@ class Clyde extends WineChoreography
     function OnSignalAI() {
         log(message().message+":"+message().signal);
         if (message().signal=="gong_ring") {
-            // RtBeginFetchWine();
-            // TODO - do we handle this here or with Signal Response? does it matter?
+            // NOTE: tried using the sound value instead of the gong link, but
+            //       the game spams signals for the duration of the gong sound,
+            //       and Signal Response freezes the AI in place until the
+            //       deluge finishes. We don't need Signal Response to spam
+            //       us either, so back to the Owns link it is.
+            print(desc(self)+": Ahh!! I hear-a the gong-a ring!!!");
+            if (! HasActiveRoutine()) {
+                print(desc(self)+": Must fetch-a the wine!!");
+                OnFetchWine();
+            }
         }
     }
 
@@ -144,6 +152,8 @@ class Clyde extends WineChoreography
             local bottle = LinkDest(link);
             if (! Object.HasMetaProperty(bottle, "M-ReservedForAI"))
                 Object.AddMetaProperty(bottle, "M-ReservedForAI");
+            link = Link.Create("ScriptParams", self, bottle);
+            LinkTools.LinkSetData(link, "", "MyBottle");
             Reply(true);
         } else {
             // No more bottles left, so never look here again.
@@ -158,18 +168,33 @@ class Clyde extends WineChoreography
         }
     }
 
-    // TODO: should reserve a wine bottle so the player cant interrupt at this
-    //       stage.
-
     function OnGetWineBottle() {
         log(message().message);
-        local link = Link.GetOne("Population", "BottleRoom");
-        if (link!=0) {
-            local bottle = LinkDest(link);
+        local bottle = 0;
+        foreach (link in Link.GetAll("ScriptParams", self)) {
+            if (LinkTools.LinkGetData(link, "")=="MyBottle") {
+                bottle = LinkDest(link);
+                Link.Destroy(link);
+            }
+        }
+        if (bottle!=0) {
             // We actually want it in the hand, but kContainTypeHand is nonfunctional.
+            // TODO: fix belt link location to be in the hand.
             Container.Add(bottle, self, eDarkContainType.kContainTypeBelt);
             SetRoutine("ClydeElevPt");
         }
+    }
+
+    function OnAnyWineCasks() {
+        log("There are always wine casks.");
+        Reply(true);
+    }
+
+    function OnGetWineCask() {
+        log(message().message);
+        local cask = Object.Create("CarriedWine");
+        Container.Add(cask, self, eDarkContainType.kContainTypeAlt);
+        SetRoutine("ClydeElevPt");
     }
 
     function OnIsElevatorReady_() {
@@ -207,12 +232,21 @@ class Clyde extends WineChoreography
             local type = LinkTools.LinkGetData(link, "");
             if (type==eDarkContainType.kContainTypeBelt
             || eDarkContainType.kContainTypeAlt) {
+                // NOTE: We get weird squirrel script failures if we try to
+                //       destroy the link within this loop. So don't do that!
                 burden = LinkDest(link);
-                Link.Destroy(link);
                 break;
             }
         }
-        Object.RemoveMetaProperty(elev, "M-ElevPaused");
+        if (burden==0) {
+            print("ERROR: cannot find anything to load on the elevator.");
+            Reply(false);
+            return;
+        }
+        Container.Remove(burden);
+        if (Object.HasMetaProperty(elev, "M-ElevPaused")) {
+            Object.RemoveMetaProperty(elev, "M-ElevPaused");
+        }
         ClearRoutine();
         log("TODO: Found burden:"+burden+", need to load elevator with it.");
     }

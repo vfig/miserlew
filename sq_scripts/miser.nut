@@ -844,3 +844,14 @@ class TrigArchetypeRoom extends TrigRoomPlayerEtc {
         return Object.InheritsFrom(o, GetTrackedArchetype());
     }
 }
+
+
+/* Removes FrobInert from ControlDevice targets on TurnOn. */
+class TrapFrobErt extends SqRootScript {
+    function OnTurnOn() {
+        local meta = Object.Named("FrobInert");
+        foreach (link in Link.GetAll("ControlDevice", self)) {
+            Object.RemoveMetaProperty(LinkDest(link), meta);
+        }
+    }
+}
