@@ -855,3 +855,35 @@ class TrapFrobErt extends SqRootScript {
         }
     }
 }
+
+
+class FlappyRat extends SqRootScript {
+    // turn on joints for a bit, then turn it off and reset joint positions.
+    // have a random time between turn ons.
+
+    function OnBeginScript() {
+        if (! IsDataSet("JointPos1")) {
+            for (local i=1; i<=6; ++i) {
+                SetData("JointPos"+i, GetProperty("JointPos", "Joint "+i));
+            }
+            SetOneShotTimer("FlapOn", 1.0);
+        }
+    }
+
+    function OnTimer() {
+        if (message().name=="FlapOn") {
+            local animS = GetProperty("StTweqJoints", "AnimS");
+            SetProperty("StTweqJoints", "AnimS", animS|1); // +On
+            local delay = 0.5+1.0*Data.RandFlt0to1();
+            SetOneShotTimer("FlapOff", delay);
+        } else if (message().name=="FlapOff") {
+            local animS = GetProperty("StTweqJoints", "AnimS");
+            SetProperty("StTweqJoints", "AnimS", animS&~1); // -On
+            local delay = 3.0+5.0*Data.RandFlt0to1();
+            SetOneShotTimer("FlapOn", delay);
+            for (local i=1; i<=6; ++i) {
+                SetProperty("JointPos", "Joint "+i, GetData("JointPos"+i));
+            }
+        }
+    }
+}
