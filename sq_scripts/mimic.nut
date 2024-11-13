@@ -44,7 +44,7 @@ if (USE_PLAYERLIMBS_API) {
     g_ViewmodelFac = vector(0.0,0.0,0.0);
 }
 
-const g_minCastTime = 0.5;
+const g_minCastTime = 0.75;
 
 /* Converts TurnOn/TurnOff into possession/dispossession of the CD-linked
  * object, or self if there is no outgoing CD link. */
@@ -738,5 +738,18 @@ class PossessViewmodel extends SqRootScript {
     function OnMessage() {
         // TEMP: print all other messages we might need to handle.
         print("PossessViewmodel - "+GetTime()+": "+Object.GetName(self)+" ("+self+"): "+message().message);
+    }
+}
+
+class PossessCrosshair extends SqRootScript {
+    function OnTweqComplete() {
+        // NOTE: Scale tweq does not always hit the endpoint when running,
+        //       so we manually force the final scale here when the scale
+        //       stops. Otherwise we would get an inconsistent crosshair size!
+        if (message().Type==eTweqType.kTweqTypeScale
+        && message().Op==eTweqOperation.kTweqOpHaltTweq) {
+            local params = Property.Get(self, "CfgTweqScale", "x rate-low-high");
+            Property.SetSimple(self, "Scale", vector(params.y,params.y,params.y));
+        }
     }
 }
