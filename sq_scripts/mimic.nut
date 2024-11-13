@@ -259,6 +259,14 @@ class Possessor extends SqRootScript {
         local pos = Object.Position(target); // TODO: pointer pos + camera offset
         SetAnchorPosition(pos);
         local anchor = GetPossessAnchor();
+        // Clear the player's collision response so they won't impact doors, AIs, etc.
+        local collisionType = GetProperty("CollisionType");
+        SetData("PlayerCollisionType", GetProperty("CollisionType"));
+        SetData("PlayerRadius1", GetProperty("PhysDims", "Radius 1"));
+        SetData("PlayerRadius2", GetProperty("PhysDims", "Radius 2"));
+        SetProperty("CollisionType", 0);
+        SetProperty("PhysDims", "Radius 1", 0.01);
+        SetProperty("PhysDims", "Radius 2", 0.01);
         // NOTE: Awareness links will be snapped by the teleport. However,
         //       without the teleport the player is pulled at high speed to
         //       the attach position, with their camera doing the whole
@@ -274,10 +282,6 @@ class Possessor extends SqRootScript {
         local link = Link.Create("PhysAttach", self, anchor);
         LinkTools.LinkSetData(link, "Offset", offset);
         Link.Create("Population", anchor, target);
-        // Clear the player's collision response so they won't impact doors, AIs, etc.
-        local collisionType = GetProperty("CollisionType");
-        SetData("PlayerCollisionType", collisionType);
-        SetProperty("CollisionType", 0);
     }
 
     function Detach(target) {
@@ -286,8 +290,9 @@ class Possessor extends SqRootScript {
         Link.Destroy(Link.GetOne("Population", anchor, target));
         Property.Set(anchor, "MovingTerrain", "Active", false);
         // Restore the player's collision response.
-        local collisionType = GetData("PlayerCollisionType");
-        SetProperty("CollisionType", collisionType);
+        SetProperty("CollisionType", GetData("PlayerCollisionType"));
+        SetProperty("PhysDims", "Radius 1", GetData("PlayerRadius1"));
+        SetProperty("PhysDims", "Radius 2", GetData("PlayerRadius2"));
     }
 
     function UpdateAttachPosition() {
