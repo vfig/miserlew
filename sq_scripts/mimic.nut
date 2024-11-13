@@ -38,11 +38,13 @@ const POSSESS_POINT_RADIUS = 1.0;
 local g_ViewmodelPos, g_ViewmodelFac;
 if (USE_PLAYERLIMBS_API) {
     g_ViewmodelPos = vector(-0.0246241,-0.428078,-0.527131);
-    g_ViewmodelFac = vector(0,0,149);
+    g_ViewmodelFac = vector(0,1.3,145.5);
 } else {
     g_ViewmodelPos = vector(0.2,0.2,2.0);
     g_ViewmodelFac = vector(0.0,0.0,0.0);
 }
+
+const g_minCastTime = 0.5;
 
 /* Converts TurnOn/TurnOff into possession/dispossession of the CD-linked
  * object, or self if there is no outgoing CD link. */
@@ -533,21 +535,28 @@ class PossessCaster extends SqRootScript {
     function OnFrobInvBegin() {
         // Player left-clicked while possessed.
         print(GetTime()+": "+Object.GetName(self)+" ("+self+"): "+message().message);
-        local player = Object.Named("Player");
         if (message().Abort) {
-            SendMessage("Player", "FrobLeftAbort");
+            ClearData("CastStart");
+            StopCrosshair();
         } else {
-            SendMessage("Player", "FrobLeftBegin");
+            SetData("CastStart", GetTime());
+            StartCrosshair();
         }
+
     }
 
     function OnFrobInvEnd() {
         print(GetTime()+": "+Object.GetName(self)+" ("+self+"): "+message().message);
-        local player = Object.Named("Player");
-        SendMessage("Player", "FrobLeftEnd");
-
-        // TODO: dont allow spamming this
-        CastSpell();
+        if (IsDataSet("CastStart")) {
+            local startTime = GetData("CastStart");
+            ClearData("CastStart");
+            StopCrosshair();
+            local elapsed = GetTime()-startTime;
+            print("Cast elapsed:"+elapsed);
+            if (elapsed>=g_minCastTime) {
+                CastSpell();
+            }
+        }
     }
 
     function OnInvSelect() {
@@ -638,6 +647,15 @@ class PossessCaster extends SqRootScript {
         return 0;
     }
 
+    function GetCrosshair() {
+        foreach (link in Link.GetAll("ScriptParams", self)) {
+            if (LinkTools.LinkGetData(link, "")=="PossessCH") {
+                return LinkDest(link);
+            }
+        }
+        return 0;
+    }
+
     function SpawnViewmodel(arm) {
         local archName = "PossessCasterVM";
         local arch = Object.Named(archName);
@@ -647,9 +665,6 @@ class PossessCaster extends SqRootScript {
         }
         local viewmodel = Object.BeginCreate(arch);
         Property.SetSimple(viewmodel, "Transient", true);
-        // Object.Teleport(viewmodel, vector(
-        //     -2,64,-38            /* temp */
-        //     ), vector());
         Object.EndCreate(viewmodel);
         local link = Link.Create("ScriptParams", self, viewmodel);
         LinkTools.LinkSetData(link, "", "PossessVM");
@@ -658,6 +673,42 @@ class PossessCaster extends SqRootScript {
         LinkTools.LinkSetData(link, "joint", 1);
         LinkTools.LinkSetData(link, "rel pos", g_ViewmodelPos);
         LinkTools.LinkSetData(link, "rel rot", g_ViewmodelFac);
+
+        link = Link.GetOne("~DetailAttachement", viewmodel);
+        if (link==0) {
+            print("WARNING: no crosshair attached to viewmodel.");
+            return 0;
+        }
+        local crosshair = LinkDest(link);
+        link = Link.Create("ScriptParams", self, crosshair);
+        LinkTools.LinkSetData(link, "", "PossessCH");
+    }
+
+    function StartCrosshair() {
+        local crosshair = GetCrosshair();
+        if (crosshair==0) {
+            print("WARNING: tried to cast spell when there is no crosshair.");
+            return;
+        }
+        // Start the shrinking tweq.
+        local params = Property.Get(crosshair, "CfgTweqScale", "x rate-low-high");
+        Property.SetSimple(crosshair, "Scale", vector(params.z,params.z,params.z));
+        Property.Set(crosshair, "StTweqScale", "AnimS", 3); // On|Reverse
+        Property.Set(crosshair, "StTweqScale", "Axis 1AnimS", 3); // On|Reverse
+        Property.Set(crosshair, "StTweqScale", "Axis 2AnimS", 3); // On|Reverse
+        Property.Set(crosshair, "StTweqScale", "Axis 3AnimS", 3); // On|Reverse
+        Property.SetSimple(crosshair, "RenderType", 0); // Normal
+    }
+
+    function StopCrosshair() {
+        local crosshair = GetCrosshair();
+        if (crosshair==0) {
+            print("WARNING: tried to cast spell when there is no crosshair.");
+            return;
+        }
+        // Stop the tweq.
+        Property.Set(crosshair, "StTweqScale", "AnimS", 0);
+        Property.SetSimple(crosshair, "RenderType", 1); // Not Rendered
     }
 
     function CastSpell() {
