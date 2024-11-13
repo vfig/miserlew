@@ -1,0 +1,23 @@
+force_alpha_key 1
+render_material_only 1
+uv_clamp 1
+
+render_pass {
+    texture "tex\posschair1"
+    rgb 0.569 0.145 0.882
+    alpha 0.9
+    blend SRC_ALPHA ONE
+    shaded 0
+    uv_clamp 1
+    uv_mod SPIN 100.0
+}
+
+render_pass {
+    texture "tex\posschair2"
+    rgb 0.569 0.145 0.882
+    alpha 0.9
+    blend SRC_ALPHA ONE
+    shaded 0
+    uv_clamp 1
+    uv_mod SPIN -100.0
+}

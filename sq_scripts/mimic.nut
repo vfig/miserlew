@@ -647,9 +647,18 @@ class PossessCaster extends SqRootScript {
         return 0;
     }
 
-    function GetCrosshair() {
+    function GetCrosshair1() {
         foreach (link in Link.GetAll("ScriptParams", self)) {
-            if (LinkTools.LinkGetData(link, "")=="PossessCH") {
+            if (LinkTools.LinkGetData(link, "")=="PossessCH1") {
+                return LinkDest(link);
+            }
+        }
+        return 0;
+    }
+
+    function GetCrosshair2() {
+        foreach (link in Link.GetAll("ScriptParams", self)) {
+            if (LinkTools.LinkGetData(link, "")=="PossessCH2") {
                 return LinkDest(link);
             }
         }
@@ -674,20 +683,30 @@ class PossessCaster extends SqRootScript {
         LinkTools.LinkSetData(link, "rel pos", g_ViewmodelPos);
         LinkTools.LinkSetData(link, "rel rot", g_ViewmodelFac);
 
-        link = Link.GetOne("~DetailAttachement", viewmodel);
-        if (link==0) {
+        local crosshair1 = 0;
+        local crosshair2 = 0;
+        foreach  (link in Link.GetAll("~DetailAttachement", viewmodel)) {
+            local o = LinkDest(link);
+            // NOTE: PossessCrosshair2 itself inherits from PossessCrosshair,
+            //       so we must check for it first.
+            if (Object.InheritsFrom(o, "PossessCrosshair2"))
+                crosshair2 = o;
+            else if (Object.InheritsFrom(o, "PossessCrosshair"))
+                crosshair1 = o;
+        }
+        if (crosshair1==0 || crosshair2==0) {
             print("WARNING: no crosshair attached to viewmodel.");
             return 0;
         }
-        local crosshair = LinkDest(link);
-        link = Link.Create("ScriptParams", self, crosshair);
-        LinkTools.LinkSetData(link, "", "PossessCH");
+        link = Link.Create("ScriptParams", self, crosshair1);
+        LinkTools.LinkSetData(link, "", "PossessCH1");
+        link = Link.Create("ScriptParams", self, crosshair2);
+        LinkTools.LinkSetData(link, "", "PossessCH2");
     }
 
-    function StartCrosshair() {
-        local crosshair = GetCrosshair();
+    function _StartCrosshairTweq(crosshair) {
         if (crosshair==0) {
-            print("WARNING: tried to cast spell when there is no crosshair.");
+            print("WARNING: no crosshair to tweq.");
             return;
         }
         // Start the shrinking tweq.
@@ -697,18 +716,27 @@ class PossessCaster extends SqRootScript {
         Property.Set(crosshair, "StTweqScale", "Axis 1AnimS", 3); // On|Reverse
         Property.Set(crosshair, "StTweqScale", "Axis 2AnimS", 3); // On|Reverse
         Property.Set(crosshair, "StTweqScale", "Axis 3AnimS", 3); // On|Reverse
-        Property.SetSimple(crosshair, "RenderType", 0); // Normal
+        Property.SetSimple(crosshair, "RenderType", 2); // Unlit
     }
 
-    function StopCrosshair() {
-        local crosshair = GetCrosshair();
+    function _StopCrosshairTweq(crosshair) {
         if (crosshair==0) {
-            print("WARNING: tried to cast spell when there is no crosshair.");
+            print("WARNING: no crosshair to tweq.");
             return;
         }
         // Stop the tweq.
         Property.Set(crosshair, "StTweqScale", "AnimS", 0);
         Property.SetSimple(crosshair, "RenderType", 1); // Not Rendered
+    }
+
+    function StartCrosshair() {
+        _StartCrosshairTweq(GetCrosshair1());
+        _StartCrosshairTweq(GetCrosshair2());
+    }
+
+    function StopCrosshair() {
+        _StopCrosshairTweq(GetCrosshair1());
+        _StopCrosshairTweq(GetCrosshair2());
     }
 
     function CastSpell() {
